@@ -100,9 +100,10 @@ def main():
     parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
     parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
     parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
+    parser.add_argument("--format", choices=["pptx", "slides", "both"], help="Presentation output format: 'pptx' (local PowerPoint), 'slides' (Google Slides), or 'both'")
     parser.add_argument("--output-pptx", help="Path to output local PowerPoint file (default: output/Wiz_Health_Assessment_<Customer>.pptx)")
     parser.add_argument("--pptx-template", help="Path to PowerPoint master template (default: templates/wiz_health_assessment_template.pptx)")
-    parser.add_argument("--google-slides", action="store_true", help="Also generate a live Google Slides presentation")
+    parser.add_argument("--google-slides", action="store_true", help="Alias for --format slides")
     parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry and calculate metrics without modifying files")
     parser.add_argument("--output-json", "-o", help="Save extracted metrics dictionary to a JSON file")
     args = parser.parse_args()
@@ -987,34 +988,58 @@ def main():
     )
     print(f"    Generated {len(reqs)} replaceAllText requests across {len(merged)} variables.")
 
+    # Determine output format
+    selected_format = args.format
+    if not selected_format:
+        if args.google_slides:
+            selected_format = "slides"
+        elif not args.dry_run and sys.stdin.isatty():
+            print("\nSelect Presentation Output Format:")
+            print("  [1] PowerPoint Presentation (.pptx) - Local file, no Google account needed (Default)")
+            print("  [2] Google Slides Presentation - Creates live deck in Google Drive")
+            print("  [3] Both (PowerPoint + Google Slides)")
+            choice = input("Choice [1/2/3, default: 1]: ").strip()
+            if choice == "2":
+                selected_format = "slides"
+            elif choice == "3":
+                selected_format = "both"
+            else:
+                selected_format = "pptx"
+        else:
+            selected_format = "pptx"
+
     # 1. Local PowerPoint (.pptx) Generation
     template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
     customer_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', customer_name)
     output_pptx = args.output_pptx or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pptx")
 
-    if not args.dry_run and os.path.exists(template_pptx):
-        print(f"\n[*] Generating PowerPoint presentation from {template_pptx}...")
-        enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
-        pptx_res = process_pptx_template(
-            template_path=template_pptx,
-            output_path=output_pptx,
-            variables=merged,
-            enabled_preview_titles=enabled_titles
-        )
-        print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
-        print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
-        print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
-        if pptx_res['swept_tokens'] > 0:
-            print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
+    if selected_format in ("pptx", "both") and not args.dry_run:
+        if not os.path.exists(template_pptx):
+            print(f"\n[!] PowerPoint template not found at: {template_pptx}")
+        else:
+            print(f"\n[*] Generating PowerPoint presentation from {template_pptx}...")
+            enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+            pptx_res = process_pptx_template(
+                template_path=template_pptx,
+                output_path=output_pptx,
+                variables=merged,
+                enabled_preview_titles=enabled_titles
+            )
+            print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
+            print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
+            print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
+            if pptx_res['swept_tokens'] > 0:
+                print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 2. Google Slides Generation (Optional)
-    slides_client = GoogleSlidesClient.from_env()
+    # 2. Google Slides Generation
     new_deck_id = None
     new_deck_url = None
 
-    if (args.google_slides or slides_client) and not args.dry_run:
+    if selected_format in ("slides", "both") and not args.dry_run:
+        slides_client = GoogleSlidesClient.from_env()
         if not slides_client:
-            print("\n[!] Google Slides credentials not found in .env. Skipping Google Slides generation.")
+            print("\n[!] Google Slides credentials not found in .env.")
+            print("    See docs/GOOGLE_SLIDES_SETUP.md or run: python3 scripts/setup_credentials.py")
         else:
             print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)

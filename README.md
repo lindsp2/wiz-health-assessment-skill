@@ -47,7 +47,14 @@ python3 scripts/setup_credentials.py
 ### 3. Generate the Executive Presentation Deck
 ```bash
 # Full deck generation
-python3 scripts/generate_deck.py --customer "Acme Corporation" --folder-id "<GOOGLE_DRIVE_FOLDER_ID>"
+# Generate local PowerPoint (.pptx) - no Google account needed
+python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
+
+# Generate live Google Slides presentation in Google Drive
+python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<GOOGLE_DRIVE_FOLDER_ID>"
+
+# Generate both formats
+python3 scripts/generate_deck.py --format both --customer "Acme Corporation"
 
 # Dry run mode (validate metrics and variables without modifying Google Slides)
 python3 scripts/generate_deck.py --dry-run --output-json metrics.json

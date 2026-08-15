@@ -2,45 +2,52 @@
 name: wiz-health-assessment
 description: >-
   Automated skill to conduct comprehensive Wiz Tenant Health Assessments and generate
-  executive-ready Google Slides presentations (QBR decks). Use when evaluating cloud
+  executive-ready presentations in PowerPoint (.pptx) or Google Slides. Use when evaluating cloud
   security posture, scanning fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
 ---
 
 # Wiz Health Assessment & Presentation Deck Builder Skill
 
-You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment & Review Presentations** (Google Slides).
+You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment Presentations** in **PowerPoint (.pptx)** or **Google Slides**.
 
 ---
 
-## 1. Prerequisites & Environment Setup
+## 1. Prerequisites & Setup
 
-Before running the presentation generator or health audit, ensure the environment is configured:
+### Option A: PowerPoint (.pptx) Generation (Recommended / Zero External Setup)
+* **Only requires a Wiz Service Account** (`read:all` scope).
+* The master `.pptx` template is bundled in the repository (`templates/wiz_health_assessment_template.pptx`).
+* No Google Cloud account, OAuth client, or API setup is required.
 
-1. **Wiz Service Account**:
-   - Requires a Wiz Service Account with `read:all` permissions.
-   - See [`docs/WIZ_SERVICE_ACCOUNT_SETUP.md`](../../docs/WIZ_SERVICE_ACCOUNT_SETUP.md) for step-by-step instructions.
+### Option B: Google Slides Generation (Optional)
+* Requires a Wiz Service Account plus Google Cloud OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`).
+* See [`docs/GOOGLE_SLIDES_SETUP.md`](../../docs/GOOGLE_SLIDES_SETUP.md) for setup guide.
 
-2. **Google Cloud OAuth Credentials** (for Google Slides generation):
-   - Requires Google Drive & Google Slides API access with a refresh token.
-   - See [`docs/GOOGLE_SLIDES_SETUP.md`](../../docs/GOOGLE_SLIDES_SETUP.md) for setup guide.
-
-3. **Interactive Setup**:
-   - Run `python3 scripts/setup_credentials.py` to test connectivity and automatically generate `.env`.
+### Interactive Credentials Wizard:
+```bash
+python3 scripts/setup_credentials.py
+```
 
 ---
 
 ## 2. Generating the Executive Presentation Deck
 
-To generate a complete, 22-slide Google Slides presentation for a customer or tenant:
+You can generate the presentation in **PowerPoint**, **Google Slides**, or **Both**:
 
 ```bash
-# Generate presentation (auto-detects customer name from tenant)
-python3 scripts/generate_deck.py
+# 1. Generate local PowerPoint deck (Default - zero Google setup needed)
+python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
 
-# Generate for a specific customer name and target Google Drive folder
-python3 scripts/generate_deck.py --customer "Acme Corporation" --folder-id "11OSM169RkTJIbpj7l4lFiwsrU6lgk5FJ"
+# 2. Generate live Google Slides presentation in Google Drive
+python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
 
-# Dry run mode (validates metrics without modifying Google Slides)
+# 3. Generate BOTH PowerPoint (.pptx) and Google Slides simultaneously
+python3 scripts/generate_deck.py --format both --customer "Acme Corporation"
+
+# 4. Interactive Mode (prompts you to choose format)
+python3 scripts/generate_deck.py --customer "Acme Corporation"
+
+# 5. Dry Run (fetches telemetry & validates metrics without writing files)
 python3 scripts/generate_deck.py --dry-run --output-json metrics.json
 ```
 
