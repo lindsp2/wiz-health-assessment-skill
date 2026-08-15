@@ -12,21 +12,52 @@ You are an expert cloud security architect and technical advisor specializing in
 
 ---
 
-## 1. Prerequisites & Setup
+## 🔒 SECURITY & PRIVACY MANDATE (CRITICAL)
 
-### Option A: PowerPoint (.pptx) Generation (Recommended / Zero External Setup)
-* **Only requires a Wiz Service Account** (`read:all` scope).
-* The master `.pptx` template is bundled in the repository (`templates/wiz_health_assessment_template.pptx`).
-* No Google Cloud account, OAuth client, or API setup is required.
+> [!CAUTION]
+> **NEVER ask the user to paste, type, or share their Wiz Client Secret, API tokens, or Google OAuth secrets into the chat or LLM context.**
+>
+> If credentials are missing or need configuration:
+> 1. Provide the step-by-step instructions below on how to obtain them in the Wiz portal.
+> 2. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their local terminal.
+> 3. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
 
-### Option B: Google Slides Generation (Optional)
-* Requires a Wiz Service Account plus Google Cloud OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`).
-* See [`docs/GOOGLE_SLIDES_SETUP.md`](../../docs/GOOGLE_SLIDES_SETUP.md) for setup guide.
+---
 
-### Interactive Credentials Wizard:
+## 1. How to Obtain Wiz Credentials
+
+### A. How to Identify Your Wiz Datacenter
+1. Log in to your Wiz Portal (e.g. `https://app.wiz.io`).
+2. Look at your browser address bar:
+   - `https://app.wiz.io` or `https://us1.app.wiz.io` → Datacenter: `us1`
+   - `https://us2.app.wiz.io` → Datacenter: `us2`
+   - `https://us20.app.wiz.io` → Datacenter: `us20`
+   - `https://us100.app.wiz.io` → Datacenter: `us100`
+   - `https://eu1.app.wiz.io` → Datacenter: `eu1`
+   - `https://gov.wiz.io` → Datacenter: `gov`
+3. Alternatively: In Wiz, go to **Settings > General > Tenant Details** to see your region.
+
+### B. How to Generate a Wiz Service Account (Client ID & Secret)
+1. In the Wiz Portal, click **Settings (Gear Icon)** in the left navigation sidebar.
+2. Under **Access Management**, click **Service Accounts**.
+3. Click the blue **+ Add Service Account** button (top right).
+4. Fill in the details:
+   - **Name**: `Health-Assessment-Skill` (or any descriptive name)
+   - **Type**: Select **OAuth 2.0 / API**
+   - **Role / Permissions**: Select **Global: Security Read Only** (or `read:all` scope). *No write/mutation permissions are required.*
+5. Click **Create**.
+6. Copy the **Client ID** and **Client Secret** (note: the secret is only displayed once).
+
+### C. How to Configure Your Local `.env` File
+Create or update `.env` in the repository root:
 ```bash
-python3 scripts/setup_credentials.py
+WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
+WIZ_DATACENTER=us1
+WIZ_API_ENDPOINT=https://api.us1.app.wiz.io/graphql
+WIZ_CLIENT_ID=your_client_id_here
+WIZ_CLIENT_SECRET=your_client_secret_here
 ```
+*(Or run `python3 scripts/setup_credentials.py` in your terminal to configure interactively).*
 
 ---
 
@@ -82,7 +113,7 @@ python3 scripts/run_health_assessment.py --customer "Acme Corp" -o health_report
 
 ## 4. Reference Documentation
 
-* [`docs/WIZ_SERVICE_ACCOUNT_SETUP.md`](../../docs/WIZ_SERVICE_ACCOUNT_SETUP.md) — Service account creation guide.
+* [`docs/WIZ_SERVICE_ACCOUNT_SETUP.md`](../../docs/WIZ_SERVICE_ACCOUNT_SETUP.md) — Step-by-step credentials guide.
 * [`docs/GOOGLE_SLIDES_SETUP.md`](../../docs/GOOGLE_SLIDES_SETUP.md) — Google Cloud Slides/Drive setup.
 * [`docs/DECK_VARIABLE_CATALOG.md`](../../docs/DECK_VARIABLE_CATALOG.md) — Full 500+ variable catalog and formulas.
 * [`docs/WIZ_API_REFERENCE.md`](../../docs/WIZ_API_REFERENCE.md) — GraphQL API query reference.

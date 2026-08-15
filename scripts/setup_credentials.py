@@ -3,12 +3,13 @@
 Wiz & Google Cloud Credentials Setup Wizard
 ============================================
 Interactive setup tool to:
-1. Guide you through entering your Wiz Service Account credentials.
+1. Guide you through entering your Wiz Service Account credentials locally.
 2. Verify live connectivity to the Wiz GraphQL API.
 3. Configure Google Slides / Drive API credentials (optional).
 4. Generate a sanitized, local .env file.
 """
 
+import getpass
 import json
 import os
 import sys
@@ -67,21 +68,42 @@ def main():
     print("=======================================================")
     print("     WIZ CREDENTIALS & ENVIRONMENT SETUP WIZARD        ")
     print("=======================================================")
+    print("\n🔒 Security Notice: Credentials entered here are saved ONLY to your")
+    print("   local .env file on disk and are never shared or sent to any LLM.\n")
 
-    print("\nThis wizard will configure your local .env file.")
-    print("Prerequisites: A Wiz Service Account with read:all scope.")
-    print("Guide: See docs/WIZ_SERVICE_ACCOUNT_SETUP.md for instructions.\n")
+    # 1. Datacenter Guidance
+    print("--- 1. Wiz Datacenter ---")
+    print("How to find your datacenter:")
+    print("  • Look at your browser URL when logged into Wiz:")
+    print("    - https://app.wiz.io or https://us1.app.wiz.io  -> us1")
+    print("    - https://us2.app.wiz.io                        -> us2")
+    print("    - https://us20.app.wiz.io                       -> us20")
+    print("    - https://us100.app.wiz.io                      -> us100")
+    print("    - https://eu1.app.wiz.io                        -> eu1")
+    print("    - https://gov.wiz.io                            -> gov")
+    print("  • Or check: Settings > General > Tenant Details in the Wiz Portal.\n")
 
-    # 1. Wiz Datacenter
-    dc_input = input("Enter your Wiz Datacenter [default: us1] (e.g. us1, us2, us20, us100, eu1, gov): ").strip()
+    dc_input = input("Enter your Wiz Datacenter [default: us1]: ").strip().lower()
     datacenter = dc_input if dc_input else "us1"
 
     auth_url = "https://auth.wiz.io/oauth/token"
     api_endpoint = f"https://api.{datacenter}.app.wiz.io/graphql"
 
-    # 2. Wiz Credentials
+    # 2. Service Account Guidance
+    print("\n--- 2. Wiz Service Account Credentials ---")
+    print("How to generate your Service Account in Wiz:")
+    print("  1. In Wiz Portal, go to: Settings > Access Management > Service Accounts")
+    print("  2. Click '+ Add Service Account'")
+    print("  3. Name: 'Health-Assessment-Skill', Type: 'OAuth 2.0 / API'")
+    print("  4. Role: Select 'Global: Security Read Only' (or 'read:all' scope)")
+    print("  5. Click 'Create' and copy your Client ID and Client Secret.\n")
+
     client_id = input("Enter Wiz Service Account Client ID: ").strip()
-    client_secret = input("Enter Wiz Service Account Client Secret: ").strip()
+    client_secret = getpass.getpass("Enter Wiz Service Account Client Secret (input hidden): ").strip()
+
+    if not client_secret:
+        # Fallback to regular input if getpass has issues in certain terminals
+        client_secret = input("Enter Wiz Service Account Client Secret: ").strip()
 
     if not (client_id and client_secret):
         print("[!] Client ID and Client Secret are required.")
@@ -89,13 +111,13 @@ def main():
 
     success, tenant_name = test_wiz_connection(auth_url, client_id, client_secret, api_endpoint)
     if not success:
-        print("[!] Please verify your credentials, datacenter, and network access.")
+        print("[!] Connection test failed. Please verify your credentials and datacenter.")
         sys.exit(1)
 
     # 3. Google Slides Credentials (Optional)
-    print("\n--- Google Slides / Drive Setup (Optional) ---")
-    print("To generate live Google Slides presentations, configure Google Cloud OAuth.")
-    print("Guide: See docs/GOOGLE_SLIDES_SETUP.md for instructions.")
+    print("\n--- 3. Google Slides / Drive Setup (Optional) ---")
+    print("Note: PowerPoint (.pptx) generation works with ZERO Google setup.")
+    print("Only configure Google OAuth if you specifically want live Google Slides decks.")
     setup_google = input("Do you want to configure Google Slides credentials now? [y/N]: ").strip().lower()
 
     google_client_id = ""
@@ -105,8 +127,8 @@ def main():
 
     if setup_google == "y":
         google_client_id = input("Enter Google Client ID: ").strip()
-        google_client_secret = input("Enter Google Client Secret: ").strip()
-        google_refresh_token = input("Enter Google Refresh Token: ").strip()
+        google_client_secret = getpass.getpass("Enter Google Client Secret (hidden): ").strip() or input("Enter Google Client Secret: ").strip()
+        google_refresh_token = getpass.getpass("Enter Google Refresh Token (hidden): ").strip() or input("Enter Google Refresh Token: ").strip()
         google_folder_id = input("Enter Target Google Drive Folder ID (optional): ").strip()
 
     # 4. Write .env file
@@ -122,7 +144,7 @@ WIZ_API_ENDPOINT={api_endpoint}
 WIZ_CLIENT_ID={client_id}
 WIZ_CLIENT_SECRET={client_secret}
 
-# Google Slides & Drive
+# Google Slides & Drive (Optional)
 GOOGLE_CLIENT_ID={google_client_id}
 GOOGLE_CLIENT_SECRET={google_client_secret}
 GOOGLE_REFRESH_TOKEN={google_refresh_token}
@@ -133,8 +155,8 @@ QBR_TEMPLATE_ID=1ga4sflsBPZS2lsXi6k6fUY1jU5dOrqQ9bQ1JEp3B5GM
     env_path = Path.cwd() / ".env"
     env_path.write_text(env_content, encoding="utf-8")
     print(f"\n[✓] Successfully saved configuration to {env_path}")
-    print("\nYou are ready to run:")
-    print("  python3 scripts/generate_deck.py --customer \"" + (tenant_name or "My Customer") + "\"")
+    print("\nYou are ready to generate presentations:")
+    print(f"  python3 scripts/generate_deck.py --format pptx --customer \"{tenant_name or 'My Customer'}\"")
 
 if __name__ == "__main__":
     main()
