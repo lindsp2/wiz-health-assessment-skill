@@ -18,7 +18,7 @@ You are an expert cloud security architect and technical advisor specializing in
 > **NEVER ask the user to paste, type, or share their Wiz Client Secret, API tokens, or Google OAuth secrets into the chat or LLM context.**
 >
 > If credentials are missing or need configuration:
-> 1. Provide the step-by-step instructions below on how to obtain them in the Wiz portal.
+> 1. Provide the exact step-by-step instructions below on how to obtain them in the Wiz portal.
 > 2. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their local terminal.
 > 3. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
 
@@ -26,27 +26,18 @@ You are an expert cloud security architect and technical advisor specializing in
 
 ## 1. How to Obtain Wiz Credentials
 
-### A. How to Identify Your Wiz Datacenter
-1. Log in to your Wiz Portal (e.g. `https://app.wiz.io`).
-2. Look at your browser address bar:
-   - `https://app.wiz.io` or `https://us1.app.wiz.io` → Datacenter: `us1`
-   - `https://us2.app.wiz.io` → Datacenter: `us2`
-   - `https://us20.app.wiz.io` → Datacenter: `us20`
-   - `https://us100.app.wiz.io` → Datacenter: `us100`
-   - `https://eu1.app.wiz.io` → Datacenter: `eu1`
-   - `https://gov.wiz.io` → Datacenter: `gov`
-3. Alternatively: In Wiz, go to **Settings > General > Tenant Details** to see your region.
+### A. How to Find Your Wiz Datacenter
+1. In your browser, navigate to: [https://app.wiz.io/tenant-info/data-center-and-regions](https://app.wiz.io/tenant-info/data-center-and-regions)
+2. Locate the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us100`, `eu1`, `gov`).
 
-### B. How to Generate a Wiz Service Account (Client ID & Secret)
-1. In the Wiz Portal, click **Settings (Gear Icon)** in the left navigation sidebar.
-2. Under **Access Management**, click **Service Accounts**.
-3. Click the blue **+ Add Service Account** button (top right).
-4. Fill in the details:
-   - **Name**: `Health-Assessment-Skill` (or any descriptive name)
-   - **Type**: Select **OAuth 2.0 / API**
-   - **Role / Permissions**: Select **Global: Security Read Only** (or `read:all` scope). *No write/mutation permissions are required.*
-5. Click **Create**.
-6. Copy the **Client ID** and **Client Secret** (note: the secret is only displayed once).
+### B. How to Generate the Wiz Service Account
+1. In the Wiz Portal, open the Service Account creation page: [https://app.wiz.io/settings/service-accounts/new](https://app.wiz.io/settings/service-accounts/new)
+2. Input a recognizable name for the Service Account (e.g., `Health-Assessment-Skill`).
+3. Select `</> Custom Integration (GraphQL API)` from the **Type** dropdown.
+4. Select `Read all entities (read:all)` as the **API scope**.
+5. Click **Add Service Account**.
+6. Take note of the **Client ID** and **Client Secret** (these will be saved in your local `.env` file).
+7. Click **Finish**.
 
 ### C. How to Configure Your Local `.env` File
 Create or update `.env` in the repository root:

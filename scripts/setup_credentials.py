@@ -73,15 +73,9 @@ def main():
 
     # 1. Datacenter Guidance
     print("--- 1. Wiz Datacenter ---")
-    print("How to find your datacenter:")
-    print("  • Look at your browser URL when logged into Wiz:")
-    print("    - https://app.wiz.io or https://us1.app.wiz.io  -> us1")
-    print("    - https://us2.app.wiz.io                        -> us2")
-    print("    - https://us20.app.wiz.io                       -> us20")
-    print("    - https://us100.app.wiz.io                      -> us100")
-    print("    - https://eu1.app.wiz.io                        -> eu1")
-    print("    - https://gov.wiz.io                            -> gov")
-    print("  • Or check: Settings > General > Tenant Details in the Wiz Portal.\n")
+    print("To find your Tenant Data Center:")
+    print("  Navigate to: https://app.wiz.io/tenant-info/data-center-and-regions")
+    print("  Look for the 'Tenant Data Center' result (e.g. us1, us2, us20, us100, eu1, gov).\n")
 
     dc_input = input("Enter your Wiz Datacenter [default: us1]: ").strip().lower()
     datacenter = dc_input if dc_input else "us1"
@@ -91,12 +85,14 @@ def main():
 
     # 2. Service Account Guidance
     print("\n--- 2. Wiz Service Account Credentials ---")
-    print("How to generate your Service Account in Wiz:")
-    print("  1. In Wiz Portal, go to: Settings > Access Management > Service Accounts")
-    print("  2. Click '+ Add Service Account'")
-    print("  3. Name: 'Health-Assessment-Skill', Type: 'OAuth 2.0 / API'")
-    print("  4. Role: Select 'Global: Security Read Only' (or 'read:all' scope)")
-    print("  5. Click 'Create' and copy your Client ID and Client Secret.\n")
+    print("To create your Service Account:")
+    print("  1. Access: https://app.wiz.io/settings/service-accounts/new")
+    print("  2. Input a recognizable name for the Service Account")
+    print("  3. Select '</> Custom Integration (GraphQL API)' from the Type dropdown")
+    print("  4. Select 'Read all entities (read:all)' as the API scope")
+    print("  5. Click on 'Add Service Account'")
+    print("  6. Copy the Client ID and Client Secret")
+    print("  7. Click 'Finish'\n")
 
     client_id = input("Enter Wiz Service Account Client ID: ").strip()
     client_secret = getpass.getpass("Enter Wiz Service Account Client Secret (input hidden): ").strip()

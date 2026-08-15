@@ -6,47 +6,26 @@ This guide walks you through finding your tenant datacenter and creating a dedic
 
 ## 🔒 Security Notice
 * **Never share or paste your Client Secret in chat conversations or public repositories.**
-* Credentials should be stored strictly in your local `.env` file (which is gitignored).
+* Credentials should be stored strictly in your local `.env` file on disk (which is gitignored).
 
 ---
 
-## 1. How to Identify Your Wiz Datacenter
+## 1. How to Find Your Wiz Datacenter
 
-Wiz hosts tenants across several regional cloud data centers. You need your datacenter identifier to construct the correct GraphQL API endpoint.
-
-### Method 1: Check your Browser Address Bar
-Log in to your Wiz Portal and look at the URL in your address bar:
-
-| If your Wiz URL is... | Your Datacenter is... | GraphQL API Endpoint |
-|---|---|---|
-| `https://app.wiz.io` or `https://us1.app.wiz.io` | `us1` (US Commercial - AWS) | `https://api.us1.app.wiz.io/graphql` |
-| `https://us2.app.wiz.io` | `us2` (US Commercial - Azure) | `https://api.us2.app.wiz.io/graphql` |
-| `https://us20.app.wiz.io` | `us20` (US Commercial - GCP) | `https://api.us20.app.wiz.io/graphql` |
-| `https://us100.app.wiz.io` | `us100` (US Commercial) | `https://api.us100.app.wiz.io/graphql` |
-| `https://eu1.app.wiz.io` | `eu1` (Europe - AWS) | `https://api.eu1.app.wiz.io/graphql` |
-| `https://gov.wiz.io` | `gov` (US GovCloud / FedRAMP) | `https://api.gov.wiz.io/graphql` |
-
-### Method 2: Check Tenant Details in Portal
-1. In the Wiz Portal, click **Settings (Gear Icon)** in the left sidebar.
-2. Click **General > Tenant Details**.
-3. View the **Region / Datacenter** field.
+1. In your browser, navigate to: [https://app.wiz.io/tenant-info/data-center-and-regions](https://app.wiz.io/tenant-info/data-center-and-regions)
+2. Locate the **Tenant Data Center** result (e.g. `us1`, `us2`, `us20`, `us100`, `eu1`, `gov`).
 
 ---
 
-## 2. How to Generate a Wiz Service Account
+## 2. How to Generate the Wiz Service Account
 
-1. **Open Settings**: Log in to the Wiz Portal and click the **Settings (Gear Icon)** in the left navigation sidebar.
-2. **Navigate to Service Accounts**: Under the **Access Management** section, select **Service Accounts**.
-3. **Create New Service Account**:
-   * Click the blue **+ Add Service Account** button in the top right corner.
-   * **Name**: Enter a descriptive name (e.g. `Health-Assessment-Skill`).
-   * **Account Type**: Select **Service Account (OAuth 2.0 / API)**.
-4. **Assign Scopes / Permissions**:
-   * Under Roles / Permissions, assign the **Global: Security Read Only** role (or `read:all` scope).
-   * *Note*: No write or mutation permissions are required.
-5. **Generate Credentials**:
-   * Click **Create**.
-   * **Important**: Copy the **Client ID** and **Client Secret** immediately. Wiz will not display the client secret again.
+1. In the Wiz Portal, access the Service Account creation page: [https://app.wiz.io/settings/service-accounts/new](https://app.wiz.io/settings/service-accounts/new)
+2. Input a recognizable name for the Service Account (e.g. `Health-Assessment-Skill`).
+3. Select `</> Custom Integration (GraphQL API)` from the **Type** dropdown.
+4. Select `Read all entities (read:all)` as the **API scope**.
+5. Click on **Add Service Account**.
+6. Take note of the **Client ID** and **Client Secret** (these will be used in your local `.env` file).
+7. Click **Finish**.
 
 ---
 
@@ -60,10 +39,10 @@ cp .env.example .env
 
 Edit `.env`:
 ```bash
-# Wiz Authentication OAuth Endpoint
+# Wiz Authentication OAuth Endpoint (default: https://auth.wiz.io/oauth/token)
 WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
 
-# Wiz Data Center / Region Identifier (e.g. us1, us2, us20, us100, eu1, gov)
+# Wiz Data Center Identifier (e.g. us1, us2, us20, us100, eu1, gov)
 WIZ_DATACENTER=us1
 
 # Direct Wiz GraphQL API Endpoint
