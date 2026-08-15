@@ -17,6 +17,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -29,6 +30,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from api_delta_processor import build_replacement_requests, process_raw_api_delta
 from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
+from pptx_processor import process_pptx_template
 
 def get_wiz_access_token():
     env_vars = {}
@@ -46,10 +48,17 @@ def get_wiz_access_token():
                     k, v = line.split("=", 1)
                     env_vars[k.strip()] = v.strip().strip('"').strip("'")
 
-    client_id = env_vars.get("WIZ_CLIENT_ID")
-    client_secret = env_vars.get("WIZ_CLIENT_SECRET")
-    auth_url = env_vars.get("WIZ_AUTH_URL", "https://auth.wiz.io/oauth/token")
-    api_endpoint = env_vars.get("WIZ_API_ENDPOINT", "https://api.us100.app.wiz.io/graphql")
+    client_id = env_vars.get("WIZ_CLIENT_ID") or os.environ.get("WIZ_CLIENT_ID")
+    client_secret = env_vars.get("WIZ_CLIENT_SECRET") or os.environ.get("WIZ_CLIENT_SECRET")
+    auth_url = env_vars.get("WIZ_AUTH_URL") or os.environ.get("WIZ_AUTH_URL", "https://auth.wiz.io/oauth/token")
+    datacenter = env_vars.get("WIZ_DATACENTER") or os.environ.get("WIZ_DATACENTER", "us100")
+    api_endpoint = env_vars.get("WIZ_API_ENDPOINT") or os.environ.get("WIZ_API_ENDPOINT", f"https://api.{datacenter}.app.wiz.io/graphql")
+
+    if not (client_id and client_secret):
+        print("\n[!] Wiz Service Account credentials not found.")
+        print("    Please run: python3 scripts/setup_credentials.py")
+        print("    Or create a .env file with WIZ_CLIENT_ID and WIZ_CLIENT_SECRET.\n")
+        sys.exit(1)
 
     auth_data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
@@ -91,7 +100,10 @@ def main():
     parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
     parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
     parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
-    parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry and calculate metrics without modifying Google Slides")
+    parser.add_argument("--output-pptx", help="Path to output local PowerPoint file (default: output/Wiz_Health_Assessment_<Customer>.pptx)")
+    parser.add_argument("--pptx-template", help="Path to PowerPoint master template (default: templates/wiz_health_assessment_template.pptx)")
+    parser.add_argument("--google-slides", action="store_true", help="Also generate a live Google Slides presentation")
+    parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry and calculate metrics without modifying files")
     parser.add_argument("--output-json", "-o", help="Save extracted metrics dictionary to a JSON file")
     args = parser.parse_args()
 
@@ -975,88 +987,117 @@ def main():
     )
     print(f"    Generated {len(reqs)} replaceAllText requests across {len(merged)} variables.")
 
+    # 1. Local PowerPoint (.pptx) Generation
+    template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
+    customer_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', customer_name)
+    output_pptx = args.output_pptx or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pptx")
+
+    if not args.dry_run and os.path.exists(template_pptx):
+        print(f"\n[*] Generating PowerPoint presentation from {template_pptx}...")
+        enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+        pptx_res = process_pptx_template(
+            template_path=template_pptx,
+            output_path=output_pptx,
+            variables=merged,
+            enabled_preview_titles=enabled_titles
+        )
+        print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
+        print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
+        print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
+        if pptx_res['swept_tokens'] > 0:
+            print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
+
+    # 2. Google Slides Generation (Optional)
     slides_client = GoogleSlidesClient.from_env()
-    if args.dry_run or not slides_client:
-        if not slides_client and not args.dry_run:
-            print("\n[!] Google Slides credentials not found in .env. Running in DRY-RUN mode.")
+    new_deck_id = None
+    new_deck_url = None
+
+    if (args.google_slides or slides_client) and not args.dry_run:
+        if not slides_client:
+            print("\n[!] Google Slides credentials not found in .env. Skipping Google Slides generation.")
+        else:
+            print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
+            copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)
+            new_deck_id = copy_res.get("id")
+            new_deck_url = copy_res.get("webViewLink") or f"https://docs.google.com/presentation/d/{new_deck_id}/edit"
+            print(f"    New Deck ID: {new_deck_id}")
+            print(f"    New Deck URL: {new_deck_url}")
+
+            print(f"\n[*] Applying {len(reqs)} batch replacement requests via Slides API...")
+            slides_client.batch_update_presentation(new_deck_id, reqs)
+
+            print("\n[*] Highlighting enabled preview items in light green on Slides 16 & 17...")
+            def highlight_enabled_previews(slides_client, presentation_id, preview_items):
+                SLIDES_API_BASE = "https://slides.googleapis.com/v1"
+                enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+                pres = slides_client._request("GET", f"{SLIDES_API_BASE}/presentations/{presentation_id}")
+                
+                highlight_reqs = []
+                for slide in pres.get("slides", []):
+                    for elem in slide.get("pageElements", []):
+                        elem_id = elem.get("objectId")
+                        if "shape" in elem and "text" in elem["shape"]:
+                            full_text = "".join(te.get("textRun", {}).get("content", "") for te in elem["shape"]["text"].get("textElements", []))
+                            for line in full_text.split("\n"):
+                                line_str = line.strip()
+                                if not line_str or not line_str.startswith("•"):
+                                    continue
+                                clean_title = line_str.lstrip("• ").strip()
+                                if clean_title in enabled_titles:
+                                    idx = full_text.find(line)
+                                    if idx != -1:
+                                        highlight_reqs.append({
+                                            "updateTextStyle": {
+                                                "objectId": elem_id,
+                                                "textRange": {
+                                                    "type": "FIXED_RANGE",
+                                                    "startIndex": idx,
+                                                    "endIndex": idx + len(line)
+                                                },
+                                                "style": {
+                                                    "backgroundColor": {
+                                                        "opaqueColor": {
+                                                            "rgbColor": {
+                                                                "red": 0.88,
+                                                                "green": 0.96,
+                                                                "blue": 0.88
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "fields": "backgroundColor"
+                                            }
+                                        })
+                if highlight_reqs:
+                    slides_client.batch_update_presentation(presentation_id, highlight_reqs)
+                return len(highlight_reqs)
+
+            hl_count = highlight_enabled_previews(slides_client, new_deck_id, preview_items)
+            print(f"    Highlighted {hl_count} enabled preview lines in light green.")
+
+            print("\n[*] Archiving previous customer decks...")
+            arch_count = slides_client.archive_prior_decks(target_folder_id, new_deck_id)
+            print(f"    Moved {arch_count} prior deck(s) into archive/ subfolder.")
+
+            print("\n[*] Sweeping remaining unfilled template tokens...")
+            sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
+            print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
+
+    if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
         print(f"    Total Variables Computed: {len(merged)}")
-        if args.output_json:
-            with open(args.output_json, "w", encoding="utf-8") as f:
-                json.dump(merged, f, indent=2)
-            print(f"    Saved metrics to: {args.output_json}")
-        return None, None, merged
 
-    print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
-    copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)
-    new_deck_id = copy_res.get("id")
-    new_deck_url = copy_res.get("webViewLink") or f"https://docs.google.com/presentation/d/{new_deck_id}/edit"
-    print(f"    New Deck ID: {new_deck_id}")
-    print(f"    New Deck URL: {new_deck_url}")
-
-    print(f"\n[*] Applying {len(reqs)} batch replacement requests via Slides API...")
-    slides_client.batch_update_presentation(new_deck_id, reqs)
-
-    print("\n[*] Highlighting enabled preview items in light green on Slides 16 & 17...")
-    def highlight_enabled_previews(slides_client, presentation_id, preview_items):
-        SLIDES_API_BASE = "https://slides.googleapis.com/v1"
-        enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
-        pres = slides_client._request("GET", f"{SLIDES_API_BASE}/presentations/{presentation_id}")
-        
-        highlight_reqs = []
-        for slide in pres.get("slides", []):
-            for elem in slide.get("pageElements", []):
-                elem_id = elem.get("objectId")
-                if "shape" in elem and "text" in elem["shape"]:
-                    full_text = "".join(te.get("textRun", {}).get("content", "") for te in elem["shape"]["text"].get("textElements", []))
-                    for line in full_text.split("\n"):
-                        line_str = line.strip()
-                        if not line_str or not line_str.startswith("•"):
-                            continue
-                        clean_title = line_str.lstrip("• ").strip()
-                        if clean_title in enabled_titles:
-                            idx = full_text.find(line)
-                            if idx != -1:
-                                highlight_reqs.append({
-                                    "updateTextStyle": {
-                                        "objectId": elem_id,
-                                        "textRange": {
-                                            "type": "FIXED_RANGE",
-                                            "startIndex": idx,
-                                            "endIndex": idx + len(line)
-                                        },
-                                        "style": {
-                                            "backgroundColor": {
-                                                "opaqueColor": {
-                                                    "rgbColor": {
-                                                        "red": 0.88,
-                                                        "green": 0.96,
-                                                        "blue": 0.88
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "fields": "backgroundColor"
-                                    }
-                                })
-        if highlight_reqs:
-            slides_client.batch_update_presentation(presentation_id, highlight_reqs)
-        return len(highlight_reqs)
-
-    hl_count = highlight_enabled_previews(slides_client, new_deck_id, preview_items)
-    print(f"    Highlighted {hl_count} enabled preview lines in light green.")
-
-    print("\n[*] Archiving previous customer decks...")
-    arch_count = slides_client.archive_prior_decks(target_folder_id, new_deck_id)
-    print(f"    Moved {arch_count} prior deck(s) into archive/ subfolder.")
-
-    print("\n[*] Sweeping remaining unfilled template tokens...")
-    sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
-    print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
+    if args.output_json:
+        with open(args.output_json, "w", encoding="utf-8") as f:
+            json.dump(merged, f, indent=2)
+        print(f"    Saved metrics to: {args.output_json}")
 
     print("\n=======================================================")
-    print("           QBR DECK GENERATION SUCCESSFUL              ")
-    print(f" URL: {new_deck_url}")
+    print("           DECK GENERATION SUCCESSFUL                  ")
+    if not args.dry_run and os.path.exists(output_pptx):
+        print(f" Local PPTX: {output_pptx}")
+    if new_deck_url:
+        print(f" Google Slides: {new_deck_url}")
     print("=======================================================\n")
 
     return new_deck_id, new_deck_url, merged
