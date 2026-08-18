@@ -81,10 +81,19 @@ def get_wiz_access_token():
         token = json.loads(resp.read()).get("access_token")
     return token, api_endpoint
 
-def run_gql(api_endpoint, access_token, query, variables=None, retries=4):
+def run_gql(api_endpoint, access_token, query, variables=None, retries=4, required_keys=None):
+    """Execute a GraphQL query with resilient retries.
+
+    Retries on 429 (rate limit) and 5xx (gateway/timeout) errors, and on
+    responses with a null top-level `data` (partial timeouts). If required_keys
+    is given, a response missing all of them is treated as a soft failure and
+    retried. On final failure returns {"data": {}} instead of raising, so one
+    flaky query never blanks unrelated metrics or crashes the deck build.
+    """
     payload = {"query": query}
     if variables:
         payload["variables"] = variables
+    last_err = None
     for attempt in range(retries):
         try:
             time.sleep(1.5)
@@ -93,15 +102,45 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4):
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {access_token}"}
             )
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read())
-        except urllib.error.HTTPError as e:
-            if e.code == 429 and attempt < retries - 1:
-                wait_s = 4 * (attempt + 1)
-                print(f"    [Rate limit 429] Waiting {wait_s}s before retry...")
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                result = json.loads(resp.read())
+
+            data = result.get("data")
+            soft_fail = False
+            if data is None:
+                soft_fail = True
+            elif required_keys and all((data.get(k) is None) for k in required_keys):
+                soft_fail = True
+
+            if soft_fail and attempt < retries - 1:
+                errs = result.get("errors")
+                msg = errs[0].get("message") if errs else "null data"
+                wait_s = 5 * (attempt + 1)
+                print(f"    [Soft failure: {msg}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
                 continue
-            raise
+            return result
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                wait_s = 5 * (attempt + 1)
+                print(f"    [HTTP {e.code}] Waiting {wait_s}s before retry (attempt {attempt + 1}/{retries})...")
+                time.sleep(wait_s)
+                continue
+            if attempt < retries - 1:
+                time.sleep(3)
+                continue
+            print(f"    [!] Query failed after {retries} attempts (HTTP {e.code}); continuing with empty result.")
+            return {"data": {}}
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                wait_s = 3 * (attempt + 1)
+                print(f"    [Error: {e}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
+                time.sleep(wait_s)
+                continue
+            print(f"    [!] Query failed after {retries} attempts ({last_err}); continuing with empty result.")
+            return {"data": {}}
 
 def main():
     parser = argparse.ArgumentParser(description="Wiz Tenant Health Assessment & Executive Presentation Deck Builder")
@@ -707,16 +746,11 @@ def main():
 
     # 5. Q5: Data Scans & Red Agent Modules
     print("[5/5] Running Q5 (Data Scans, Red Agent Modules)...")
-    q5 = """
-    query TamApiDeltaRedAgentAndDataScans(
-      $dsTotalQuery: GraphEntityQueryInput
-      $dsFailedQuery: GraphEntityQueryInput
-      $dsSkippedQuery: GraphEntityQueryInput
-    ) {
-      ds_total: graphSearch(query: $dsTotalQuery, projectId: "*", quick: true) { totalCount }
-      ds_failed: graphSearch(query: $dsFailedQuery, projectId: "*", quick: true) { totalCount }
-      ds_skipped: graphSearch(query: $dsSkippedQuery, projectId: "*", quick: true) { totalCount }
-
+    # --- Core scalar metrics (reliable) ---
+    # Split from the flaky graphSearch data-scan queries below so that a timeout
+    # on the slow graphSearch calls can never blank SHIs/integrations/etc.
+    q5_core = """
+    query TamApiDeltaCore {
       redAgentSettings {
         scanIntervalDays
         dastAttackerModule { isEnabled }
@@ -729,7 +763,6 @@ def main():
       webDastAttackerIssues: issues(filterBy: { status: [OPEN, IN_PROGRESS], riskEqualsAny: ["wct-id-3959"], type: [CLOUD_CONFIGURATION, TOXIC_COMBINATION] }) { totalCount }
       secretsBlastRadiusFindings: attackSurfaceFindings(filterBy: { status: { equals: [OPEN] }, redAgentModule: { equals: [SECRET_IMPACT] } }) { totalCount }
       saasAttackerFindings: attackSurfaceFindings(filterBy: { status: { equals: [OPEN] }, redAgentModule: { equals: [SAAS_ATTACKER] } }) { totalCount }
-
       customFrameworksEnabled: securityFrameworks(first: 0, filterBy: { createdBy: USER, enabled: true }) { totalCount }
       customFrameworksDisabled: securityFrameworks(first: 0, filterBy: { createdBy: USER, enabled: false }) { totalCount }
       customFrameworksAll: securityFrameworks(first: 0, filterBy: { createdBy: USER }) { totalCount }
@@ -778,30 +811,19 @@ def main():
           }
         }
       }
-      browserExtensionAudit: auditLogEntriesGroupedByValues(
-        first: 20
-        filterBy: {
-          actionV2: ["AiAssistantSendMessage"],
-          userType: [USER_ACCOUNT],
-          clientType: { notEquals: [UNKNOWN] }
-        }
-        groupBy: { fields: [CLIENT_TYPE] }
-      ) {
-        nodes {
-          clientType
-          analytics {
-            totalCount
-            performerCount
-          }
-        }
-      }
-      mcpAudit: auditLogEntriesGroupedByValues(
-        first: 0
-        filterBy: { clientType: { equals: [MCP] } }
-        groupBy: { fields: [PERFORMER] }
-      ) {
-        totalCount
-      }
+    }
+    """
+
+    # --- Data-scan coverage (flaky graphSearch; isolated) ---
+    q5_ds = """
+    query TamApiDeltaDataScans(
+      $dsTotalQuery: GraphEntityQueryInput
+      $dsFailedQuery: GraphEntityQueryInput
+      $dsSkippedQuery: GraphEntityQueryInput
+    ) {
+      ds_total: graphSearch(query: $dsTotalQuery, projectId: "*", quick: true) { totalCount }
+      ds_failed: graphSearch(query: $dsFailedQuery, projectId: "*", quick: true) { totalCount }
+      ds_skipped: graphSearch(query: $dsSkippedQuery, projectId: "*", quick: true) { totalCount }
     }
     """
     q5_vars = {
@@ -830,7 +852,18 @@ def main():
         "select": True
       }
     }
-    res5 = run_gql(api_endpoint, access_token, q5, q5_vars)
+    # Run core scalars first (retry until the important keys are present), then
+    # the flaky data-scan graphSearch. Merge both into a single res5 block so
+    # downstream classification/processing is unchanged.
+    res5_core = run_gql(api_endpoint, access_token, q5_core,
+                        required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
+    res5_ds = run_gql(api_endpoint, access_token, q5_ds, q5_vars)
+    res5 = {"data": {}}
+    res5["data"].update(res5_core.get("data") or {})
+    res5["data"].update(res5_ds.get("data") or {})
+    _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
+    _ds_ok = bool((res5_ds.get("data") or {}).get("ds_total"))
+    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; data-scan coverage: {'OK' if _ds_ok else 'MISSING/blank'}")
 
     print("[*] Running K8s Coverage Ladder & Gaps query (canonical property counts)...")
     q_k8s_cov = """

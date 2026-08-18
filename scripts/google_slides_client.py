@@ -129,6 +129,14 @@ class GoogleSlidesClient:
                     "replaceText": ""
                 }
             })
+        # Clean up Agent Enabled labels when Not Deployed / N/A
+        for pat in ["Enabled\x0bNot Deployed", "Enabled\nNot Deployed", "Enabled\r\nNot Deployed", "Enabled\x0bN/A", "Enabled\nN/A"]:
+            sweep_requests.append({
+                "replaceAllText": {
+                    "containsText": {"text": pat, "matchCase": True},
+                    "replaceText": "Not Deployed"
+                }
+            })
         self.batch_update_presentation(presentation_id, sweep_requests)
         return {"swept_count": len(tokens), "tokens": list(tokens)}
 

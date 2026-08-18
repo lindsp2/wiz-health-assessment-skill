@@ -164,8 +164,13 @@ def classify_blocks(blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
             q_shi = d
         if d.get("aiSecFindings") is not None or d.get("aiMisconfigFindings") is not None:
             q_ai = d
-        if d.get("ds_total") is not None or d.get("webCrawlerApiEndpoints") is not None or d.get("webDastAttackerFindings") is not None:
-            q5 = d
+        if (d.get("ds_total") is not None or d.get("webCrawlerApiEndpoints") is not None
+                or d.get("webDastAttackerFindings") is not None or d.get("shi_open_crit") is not None
+                or d.get("integrationsList") is not None or d.get("customFrameworksAll") is not None):
+            # Merge (don't overwrite) so Q5 data split across multiple blocks accumulates.
+            if q5 is None:
+                q5 = {}
+            q5.update(d)
 
         if d.get("disc_all") is not None or d.get("discoveredResources") is not None or d.get("workloadScans") is not None or d.get("imgLifecycle") is not None:
             q1 = d
