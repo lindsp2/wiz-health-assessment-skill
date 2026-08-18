@@ -9,10 +9,10 @@ Interactive installer that:
 4. Performs a live test to verify connectivity.
 """
 
-import os
+import argparse
 import shutil
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -36,7 +36,6 @@ def safe_remove(path: Path):
 
 def detect_agent_environments():
     home = Path.home()
-    envs = []
 
     # 1. Claude Code & Claude Desktop (Global)
     claude_paths = [
@@ -71,7 +70,6 @@ def detect_agent_environments():
     # 4. Local Project / Workspace (.claude/skills and .agent/skills)
     envs.append(("Current Repository (.claude/skills & .agent/skills)", REPO_DIR / ".claude" / "skills"))
 
-    return envs
 
 def copy_or_symlink_skill(src_folder: Path, dest_folder: Path):
     """Try symlinking first; if on Windows without developer mode, copy folder."""
@@ -96,26 +94,19 @@ def install_skills():
     print("     WIZ HEALTH ASSESSMENT SKILLS INSTALLER            ")
     print("=======================================================")
 
-    print("\n[1/3] Detecting AI Agent Environments...")
-    environments = detect_agent_environments()
+    skills = available_skills()
+    if not skills:
+        print(f"\n[!] No skills found in {SKILLS_DIR}")
+        print("    Run this from a full clone of the repository.")
+        return 1
 
-    for idx, (name, path) in enumerate(environments, 1):
-        print(f"  [{idx}] {name} -> {path}")
-    print(f"  [{len(environments) + 1}] Install to all detected environments")
+    print(f"\n[1/3] Detecting AI agent environments... ({len(skills)} skills to install)")
+    environments = agent_environments()
+    selected = choose_environments(environments, args)
+    if not selected:
+        return 1
 
-    choice = input(f"\nSelect target environment [1-{len(environments) + 1}, default: 1]: ").strip()
-    selected = []
-    if not choice or choice == "1":
-        selected = [environments[0]]
-    elif choice == str(len(environments) + 1):
-        selected = environments
-    else:
-        try:
-            val = int(choice)
-            if 1 <= val <= len(environments):
-                selected = [environments[val - 1]]
-        except ValueError:
-            selected = [environments[0]]
+    results = [install_to(env, skills, args.yes) for env in selected]
 
     # Also always ensure local workspace .agent/skills and .claude/skills exist
     local_claude = REPO_DIR / ".claude" / "skills"
@@ -156,6 +147,8 @@ def install_skills():
     print("\nOr run directly from the terminal:")
     print("  python scripts/generate_deck.py --customer 'Acme Corp'")
     print("=======================================================\n")
+    return 0 if all(results) else 1
+
 
 if __name__ == "__main__":
-    install_skills()
+    sys.exit(main())

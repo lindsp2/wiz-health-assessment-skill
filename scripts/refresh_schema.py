@@ -8,7 +8,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from console_compat import enable_unicode_output
 from wiz_client import WizClient
+
+enable_unicode_output()
 
 INTROSPECTION_QUERY = """
 query FullIntrospection {
