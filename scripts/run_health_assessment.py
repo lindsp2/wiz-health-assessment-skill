@@ -10,7 +10,12 @@ import datetime
 import json
 import sys
 from pathlib import Path
+from console_compat import enable_unicode_output, python_command
 from wiz_client import WizClient
+
+# Severity dots and dashes in the report output are not encodable on a legacy
+# Windows console until this runs.
+enable_unicode_output()
 
 HEALTH_ASSESSMENT_QUERY = """
 query TenantHealthAuditMetrics {
@@ -247,7 +252,7 @@ Add this condition block to your AWS Organization Service Control Policy (SCP) t
 ### Post-Remediation Verification Command
 After applying the fixes, verify that system health issues clear:
 ```bash
-python3 scripts/wiz_client.py -q 'query VerifyHealth {{ systemHealthIssues(filterBy: {{ status: [OPEN], severity: [CRITICAL] }}) {{ totalCount }} }}'
+{python_command()} scripts/wiz_client.py -q 'query VerifyHealth {{ systemHealthIssues(filterBy: {{ status: [OPEN], severity: [CRITICAL] }}) {{ totalCount }} }}'
 ```
 """
     return report

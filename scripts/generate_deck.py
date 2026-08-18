@@ -28,9 +28,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from api_delta_processor import build_replacement_requests, process_raw_api_delta
+from console_compat import enable_unicode_output, python_command
 from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
+
+# Configure the console before anything prints: this module and its helpers
+# emit checkmarks and bullets that a legacy Windows code page cannot encode.
+enable_unicode_output()
 
 def get_wiz_access_token():
     env_vars = {}
@@ -56,7 +61,7 @@ def get_wiz_access_token():
 
     if not (client_id and client_secret):
         print("\n[!] Wiz Service Account credentials not found.")
-        print("    Please run: python3 scripts/setup_credentials.py")
+        print(f"    Please run: {python_command()} scripts/setup_credentials.py")
         print("    Or create a .env file with WIZ_CLIENT_ID and WIZ_CLIENT_SECRET.\n")
         sys.exit(1)
 
@@ -1039,7 +1044,7 @@ def main():
         slides_client = GoogleSlidesClient.from_env()
         if not slides_client:
             print("\n[!] Google Slides credentials not found in .env.")
-            print("    See docs/GOOGLE_SLIDES_SETUP.md or run: python3 scripts/setup_credentials.py")
+            print(f"    See docs/GOOGLE_SLIDES_SETUP.md or run: {python_command()} scripts/setup_credentials.py")
         else:
             print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)

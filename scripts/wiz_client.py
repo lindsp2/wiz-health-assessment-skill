@@ -16,6 +16,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from console_compat import enable_unicode_output
+
+enable_unicode_output()
+
 
 class WizClient:
     def __init__(self, auth_url=None, api_endpoint=None, client_id=None, client_secret=None, env_file=None):

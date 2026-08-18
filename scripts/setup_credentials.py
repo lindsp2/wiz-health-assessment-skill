@@ -17,6 +17,15 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from console_compat import enable_unicode_output, python_command
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_DIR = SCRIPT_DIR.parent
+
+enable_unicode_output()
+
 def test_wiz_connection(auth_url, client_id, client_secret, api_endpoint):
     print("\n[*] Testing connection to Wiz GraphQL API...")
     auth_data = urllib.parse.urlencode({
@@ -148,11 +157,13 @@ GOOGLE_FOLDER_ID={google_folder_id}
 QBR_TEMPLATE_ID=1ga4sflsBPZS2lsXi6k6fUY1jU5dOrqQ9bQ1JEp3B5GM
 """
 
-    env_path = Path.cwd() / ".env"
+    # Write beside the repo rather than into the current directory, so the file
+    # lands where every other script looks for it no matter where this was run.
+    env_path = REPO_DIR / ".env"
     env_path.write_text(env_content, encoding="utf-8")
     print(f"\n[✓] Successfully saved configuration to {env_path}")
     print("\nYou are ready to generate presentations:")
-    print(f"  python3 scripts/generate_deck.py --format pptx --customer \"{tenant_name or 'My Customer'}\"")
+    print(f"  {python_command()} scripts/generate_deck.py --format pptx --customer \"{tenant_name or 'My Customer'}\"")
 
 if __name__ == "__main__":
     main()
