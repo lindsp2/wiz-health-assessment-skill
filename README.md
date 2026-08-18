@@ -30,21 +30,65 @@ Works out-of-the-box with **Claude Code**, **Cursor**, **ChatGPT**, **VS Code (C
 
 ## 🚀 Quick Start
 
+Requires **Python 3.8 or newer**. Everything below works on Windows, macOS, and Linux.
+
 ### 1. Installation
+
+Clone the repository, then run the installer for your platform. It installs the
+Python dependencies, copies the skills into your AI agent, and launches the
+credentials wizard if you have not configured it yet.
+
+**Windows (PowerShell)**
+```powershell
+git clone https://github.com/your-org/wiz-health-assessment-skill.git
+cd wiz-health-assessment-skill
+.\install.ps1
+```
+If Windows blocks the script, run it once as
+`powershell -ExecutionPolicy Bypass -File .\install.ps1`.
+
+**macOS / Linux**
 ```bash
 git clone https://github.com/your-org/wiz-health-assessment-skill.git
 cd wiz-health-assessment-skill
-pip install -r requirements.txt
+./install.sh
 ```
+
+**Any platform**, if you would rather skip the shell wrappers:
+```bash
+python install.py     # Windows
+python3 install.py    # macOS / Linux
+```
+
+All three routes do the same work. Options:
+
+| Flag | Effect |
+|---|---|
+| `--target NAME` | Install to `claude`, `jetski`, `cursor`, `workspace`, or `all` instead of choosing from the menu |
+| `--yes` | Accept defaults and never prompt (unattended installs) |
+| `--skip-credentials` | Do not launch the credentials wizard |
+| `--skip-deps` | Do not install Python dependencies |
+
+> **Note on Windows symlinks:** skills are symlinked when permitted, which keeps
+> them in sync with the repo. Windows only allows symlinks under Developer Mode
+> or an elevated shell, so the installer falls back to copying. If you pulled
+> updates, re-run the installer to refresh the copies.
 
 ### 2. Configure Credentials
 Run the interactive setup wizard:
 ```bash
-python3 scripts/setup_credentials.py
+python scripts/setup_credentials.py     # Windows
+python3 scripts/setup_credentials.py    # macOS / Linux
 ```
+The wizard needs a real terminal because it reads your client secret without
+echoing it. Your credentials are written to a local `.env` file, which is
+git-ignored and never leaves your machine.
 *Follow the on-screen prompts to enter your Wiz Service Account (`read:all` scope) and optional Google Cloud OAuth credentials.*
 
 ### 3. Generate the Executive Presentation Deck
+
+> The commands below use `python3`. On Windows, substitute `python`.
+
 ```bash
 # Full deck generation
 # Generate local PowerPoint (.pptx) - no Google account needed
@@ -75,6 +119,9 @@ python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health
 ├── SKILL.md                                 # Root universal agent skill definition
 ├── .env.example                             # Environment variables template
 ├── requirements.txt                         # Python dependencies
+├── install.py                               # Cross-platform installer (the real entry point)
+├── install.sh                               # macOS/Linux wrapper -> install.py
+├── install.ps1                              # Windows PowerShell wrapper -> install.py
 ├── skills/
 │   ├── wiz-health-assessment/
 │   │   └── SKILL.md                         # Skill: Executive Health Assessment & Deck Builder
@@ -93,8 +140,12 @@ python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health
 │   ├── generate_deck.py                     # Main CLI tool: Live API -> Google Slides deck
 │   ├── setup_credentials.py                 # Interactive setup wizard to test & create .env
 │   ├── run_health_assessment.py             # Automated 7-pillar tenant health assessment script
+│   ├── install_skills.py                    # Installs the skills into your AI agent environment
+│   ├── console_compat.py                    # Cross-platform console encoding & prompt helpers
+│   ├── refresh_schema.py                    # Fetches the full GraphQL introspection schema
 │   ├── wiz_client.py                        # Standalone GraphQL client with token caching & schema search
-│   ├── api_delta_processor.py              # Telemetry transformation & metric calculations
+│   ├── api_delta_processor.py               # Telemetry transformation & metric calculations
+│   ├── pptx_processor.py                    # Local PowerPoint template engine (no Office APIs)
 │   ├── preview_hub.py                       # Preview Hub & Tracked Roadmap items formatter
 │   └── google_slides_client.py              # Google Slides/Drive API client & token sweep engine
 └── templates/
