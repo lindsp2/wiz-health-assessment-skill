@@ -827,7 +827,7 @@ def main():
     """
 
     # --- Data-scan coverage (accurate multi-type scoped queries covering all DSPM Billable Units) ---
-    # Batch 1: Storage Buckets, Databases, AI Datasets
+    # Batch 1: Storage Buckets, Databases, AI Datasets (and granular counts)
     q5_ds_b1 = """
     query TamApiDeltaDataScansBatch1 {
       b1_total: graphSearch(projectId: "*", quick: true, query: {
@@ -868,10 +868,37 @@ def main():
         }]
         select: true
       }) { totalCount maxCountReached }
+
+      ds_bucket: graphSearch(projectId: "*", quick: true, query: {
+        type: [BUCKET]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
+        }]
+        select: true
+      }) { totalCount }
+
+      ds_db: graphSearch(projectId: "*", quick: true, query: {
+        type: [DATABASE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
+        }]
+        select: true
+      }) { totalCount }
+
+      ds_ai: graphSearch(projectId: "*", quick: true, query: {
+        type: [AI_DATASET]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
+        }]
+        select: true
+      }) { totalCount }
     }
     """
 
-    # Batch 2: Serverless, Virtual Drives, File System Services
+    # Batch 2: Serverless, Virtual Drives, File System Services, Non-OS Disks
     q5_ds_b2 = """
     query TamApiDeltaDataScansBatch2 {
       b2_total: graphSearch(projectId: "*", quick: true, query: {
@@ -912,6 +939,43 @@ def main():
         }]
         select: true
       }) { totalCount maxCountReached }
+
+      ds_vdrv: graphSearch(projectId: "*", quick: true, query: {
+        type: [VIRTUAL_DRIVE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
+        }]
+        select: true
+      }) { totalCount }
+
+      ds_fss: graphSearch(projectId: "*", quick: true, query: {
+        type: [FILE_SYSTEM_SERVICE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
+        }]
+        select: true
+      }) { totalCount }
+
+      non_os_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [SECURITY_TOOL_SCAN]
+        where: { name: { CONTAINS: ["non-OS scan", "non-os scan", "Non-OS scan"] } }
+        select: true
+      }) { totalCount }
+    }
+    """
+
+    # Batch 3: System Health Issues by Deployment Type (Open Critical + High)
+    q5_shi_breakdown = """
+    query ShiCritHighByDeploymentType {
+      shi_op: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [OUTPOST, OUTPOST_CLUSTER] }) { totalCount }
+      shi_cc: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [CLOUD_CONNECTOR] }) { totalCount }
+      shi_int: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [INTEGRATION, SERVICE_ACCOUNT] }) { totalCount }
+      shi_reg: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [REGISTRY_CONNECTOR] }) { totalCount }
+      shi_k8s: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [KUBERNETES_CONNECTOR, ADMISSION_CONTROLLER, KUBERNETES_AUDIT_LOG_COLLECTOR] }) { totalCount }
+      shi_vcs: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [VERSION_CONTROL_CONNECTOR, CICD_PLATFORM_CONNECTOR] }) { totalCount }
+      shi_brk: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [BROKER, WIZ_CLI] }) { totalCount }
     }
     """
 
@@ -945,7 +1009,7 @@ def main():
     }
     """
 
-    # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries
+    # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries, then SHI breakdown
     res5_core = run_gql(api_endpoint, access_token, q5_core,
                         required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
     res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1)
@@ -953,9 +1017,12 @@ def main():
     res5_ds_b1 = run_gql(api_endpoint, access_token, q5_ds_b1)
     time.sleep(1.5)
     res5_ds_b2 = run_gql(api_endpoint, access_token, q5_ds_b2)
+    time.sleep(1.5)
+    res5_shi = run_gql(api_endpoint, access_token, q5_shi_breakdown)
 
     d1 = res5_ds_b1.get("data", {})
     d2 = res5_ds_b2.get("data", {})
+    d_shi = res5_shi.get("data", {})
 
     ds_tot_sum = (d1.get("b1_total") or {}).get("totalCount", 0) + (d2.get("b2_total") or {}).get("totalCount", 0)
     ds_fail_sum = (d1.get("b1_failed") or {}).get("totalCount", 0) + (d2.get("b2_failed") or {}).get("totalCount", 0)
@@ -972,6 +1039,17 @@ def main():
     res5["data"]["ds_failed"] = {"totalCount": ds_fail_sum}
     res5["data"]["ds_skipped"] = {"totalCount": ds_skip_sum}
     
+    # Granular DSPM and Non-OS
+    res5["data"]["ds_bucket"] = d1.get("ds_bucket") or {"totalCount": 0}
+    res5["data"]["ds_db"] = d1.get("ds_db") or {"totalCount": 0}
+    res5["data"]["ds_ai"] = d1.get("ds_ai") or {"totalCount": 0}
+    res5["data"]["ds_vdrv"] = d2.get("ds_vdrv") or {"totalCount": 0}
+    res5["data"]["ds_fss"] = d2.get("ds_fss") or {"totalCount": 0}
+    res5["data"]["non_os_total"] = d2.get("non_os_total") or {"totalCount": 0}
+
+    # Granular SHI by resource bucket
+    res5["data"].update(d_shi)
+
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
     _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
     print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans: {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")

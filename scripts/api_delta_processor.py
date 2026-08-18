@@ -818,6 +818,23 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["SHI_R_C"] = str(shi_re_c if shi_re_c is not None else 0)
     out["SHI_R_H"] = str(shi_re_h if shi_re_h is not None else 0)
 
+    # Granular SHI by Resource Bucket
+    shi_op = (q5.get("shi_op") or q_shi.get("shi_op") or {}).get("totalCount")
+    shi_cc = (q5.get("shi_cc") or q_shi.get("shi_cc") or {}).get("totalCount")
+    shi_int = (q5.get("shi_int") or q_shi.get("shi_int") or {}).get("totalCount")
+    shi_reg = (q5.get("shi_reg") or q_shi.get("shi_reg") or {}).get("totalCount")
+    shi_k8s = (q5.get("shi_k8s") or q_shi.get("shi_k8s") or {}).get("totalCount")
+    shi_vcs = (q5.get("shi_vcs") or q_shi.get("shi_vcs") or {}).get("totalCount")
+    shi_brk = (q5.get("shi_brk") or q_shi.get("shi_brk") or {}).get("totalCount")
+
+    out["SHI_O"] = fmt_r(shi_op if shi_op is not None else 0)
+    out["SHI_CC"] = fmt_r(shi_cc if shi_cc is not None else 0)
+    out["SHI_I"] = fmt_r(shi_int if shi_int is not None else 0)
+    out["SHI_RC"] = fmt_r(shi_reg if shi_reg is not None else 0)
+    out["SHI_KC"] = fmt_r(shi_k8s if shi_k8s is not None else 0)
+    out["SHI_VCS"] = fmt_r(shi_vcs if shi_vcs is not None else 0)
+    out["SHI_B"] = fmt_r(shi_brk if shi_brk is not None else 0)
+
     # --- Container Lifecycle Percentages ---
     out["CL_CP"] = "100" if lc.get("CLOUD", 0) > 0 else "0"
     out["CL_DP"] = "0"
@@ -827,6 +844,7 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["CL_ASMP"] = "0"
     out["CL_REDA"] = "0"
     out["CL_SUP"] = "0"
+    out["L_CL_PCT"] = f"{out.get('CL_CP', '100')}%"
 
     # --- Licenses (Defend & Code) ---
     all_lics = t_info.get("licenses") or []
@@ -835,6 +853,23 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     
     out["L_CO"] = out.get("CL_CODE") if out.get("CL_CODE") and out["CL_CODE"] != "0" else ("Active" if has_code_lic else "0")
     out["L_DE"] = "Active" if has_defend_lic else (out.get("L_SE") if out.get("L_SE") and out["L_SE"] != "0" else "0")
+
+    # --- Granular Data Scans & Non-OS ---
+    ds_b_cnt = (q5.get("ds_bucket") or q1.get("ds_bucket") or {}).get("totalCount")
+    ds_db_cnt = (q5.get("ds_db") or q1.get("ds_db") or {}).get("totalCount")
+    ds_dw_cnt = (q5.get("ds_dw") or q1.get("ds_dw") or {}).get("totalCount")
+    ds_vd_cnt = (q5.get("ds_vdrv") or q1.get("ds_vdrv") or {}).get("totalCount")
+    ds_ai_cnt = (q5.get("ds_ai") or q1.get("ds_ai") or {}).get("totalCount")
+    ds_fss_cnt = (q5.get("ds_fss") or q1.get("ds_fss") or {}).get("totalCount")
+    non_t_cnt = (q5.get("non_os_total") or q1.get("non_os_total") or {}).get("totalCount")
+
+    out["DS_B"] = fmt_r(ds_b_cnt if ds_b_cnt is not None else 0)
+    out["DS_PD"] = fmt_r(ds_db_cnt if ds_db_cnt is not None else 0)
+    out["DS_DW"] = fmt_r(ds_dw_cnt if ds_dw_cnt is not None else 0)
+    out["DS_VD"] = fmt_r(ds_vd_cnt if ds_vd_cnt is not None else 0)
+    out["DS_AI"] = fmt_r(ds_ai_cnt if ds_ai_cnt is not None else 0)
+    out["DS_FSS"] = fmt_r(ds_fss_cnt if ds_fss_cnt is not None else 0)
+    out["NON_T"] = fmt_r(non_t_cnt if non_t_cnt is not None else 0)
 
     # --- Data Scans Defaults (so never blank) ---
     if not out.get("DS_T"):
@@ -1247,6 +1282,10 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         out["AI_SF"] = str(sum_tfc(q_ai["aiSecFindings"]))
     if q_ai.get("aiMisconfigFindings"):
         out["AI_MF"] = str(sum_tfc(q_ai["aiMisconfigFindings"]))
+    if q_ai.get("aiImpactFindings"):
+        out["AI_IF"] = str(sum_tfc(q_ai["aiImpactFindings"]))
+    elif not out.get("AI_IF"):
+        out["AI_IF"] = "0"
 
     return out
 
@@ -1458,9 +1497,11 @@ def build_replacement_requests(
         status = eval_config(val, rec_val)
         rec_token_str = "{{" + var_name + "_R}}"
         requests.append({"replaceAllText": {"containsText": {"text": rec_token_str, "matchCase": True}, "replaceText": BP[status]}})
+        merged[f"{var_name}_R"] = {"variable": f"{var_name}_R", "value": BP[status], "source": "calculated"}
         if var_name == "ASM_SAAS":
             # Typo in master template on Slide 19
             requests.append({"replaceAllText": {"containsText": {"text": "{{ASM_SASS_R}}", "matchCase": True}, "replaceText": BP[status]}})
+            merged["ASM_SASS_R"] = {"variable": "ASM_SASS_R", "value": BP[status], "source": "calculated"}
 
     # 10. QBR slide 1 single-brace date
     if today_str:
