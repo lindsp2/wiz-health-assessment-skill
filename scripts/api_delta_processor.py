@@ -841,6 +841,8 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         out["RA_WC"] = "0"
     if not out.get("RA_SI"):
         out["RA_SI"] = "0"
+    if not out.get("ASM_SV"):
+        out["ASM_SV"] = "Disabled"
     if not out.get("RA_TOTS"):
         out["RA_TOTS"] = "0"
 
@@ -932,6 +934,14 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         if i < len(top_crit):
             out[f"CI_CONTROL_{idx}"] = top_crit[i][0]
             out[f"CI_CBC_{idx}"] = fmt_r(top_crit[i][1])
+        elif len(top_crit) == 0:
+            labels = [
+                "All Critical Controls Compliant",
+                "No Critical Misconfigurations Detected",
+                "No Critical Toxic Combinations"
+            ]
+            out[f"CI_CONTROL_{idx}"] = labels[i]
+            out[f"CI_CBC_{idx}"] = "0"
         else:
             out[f"CI_CONTROL_{idx}"] = ""
             out[f"CI_CBC_{idx}"] = ""
@@ -968,7 +978,7 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         crawl_mod = (ra_set.get("webCrawlerModule") or {}).get("isEnabled")
         out["ASM_RECON"] = on_off(dast_mod)
         out["ASM_SAAS"] = on_off(saas_mod)
-        out["ASM_SV"] = on_off(sec_mod)
+        out["ASM_SV"] = on_off(sec_mod) if on_off(sec_mod) != "Disabled" else "Disabled"
         out["ASM_MODE"] = "Advanced" if (dast_mod or saas_mod or sec_mod or crawl_mod) else "Basic"
 
     ra_wc = (q5_or_q1.get("webCrawlerApiEndpoints") or {}).get("totalCount")
