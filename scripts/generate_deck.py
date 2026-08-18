@@ -871,11 +871,11 @@ def main():
     }
     """
 
-    # Batch 2: Serverless, Virtual Drives, File System Services, Hybrid Storage Services, Volumes
+    # Batch 2: Serverless, Virtual Drives, File System Services
     q5_ds_b2 = """
     query TamApiDeltaDataScansBatch2 {
       b2_total: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: {
@@ -888,7 +888,7 @@ def main():
       }) { totalCount maxCountReached }
 
       b2_failed: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: {
@@ -901,7 +901,7 @@ def main():
       }) { totalCount maxCountReached }
 
       b2_skipped: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: {
