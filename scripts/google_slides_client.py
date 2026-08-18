@@ -114,6 +114,15 @@ class GoogleSlidesClient:
             {"replaceAllText": {"containsText": {"text": t, "matchCase": True}, "replaceText": ""}}
             for t in tokens
         ]
+        # Clean up Slide 11 empty CI_CBC Issue labels
+        for idx in [1, 2, 3]:
+            sweep_requests.append({
+                "replaceAllText": {
+                    "containsText": {"text": f"{{{{CI_CBC_{idx}}}}} Issues", "matchCase": True},
+                    "replaceText": ""
+                }
+            })
+
         # Clean up Slide 12 hardcoded customer text
         sweep_requests.append({
             "replaceAllText": {

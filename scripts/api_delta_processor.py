@@ -726,20 +726,24 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["F_BA"] = agent_on("Blue Agent")
     out["F_GA"] = agent_on("Green Agent")
 
-    be_audit = q5.get("browserExtensionAudit") or q3.get("browserExtensionAudit") or q1.get("browserExtensionAudit") or {}
-    be_nodes = be_audit.get("nodes") or []
-    be_chrome = next((n for n in be_nodes if n.get("clientType") == "WIZ_CHROME_EXTEND"), None)
-    if be_chrome:
-        be_users = (be_chrome.get("analytics") or {}).get("performerCount", 0)
-        out["F_BE"] = str(be_users)
+    be_audit = q5.get("browserExtensionAudit") or q3.get("browserExtensionAudit") or q1.get("browserExtensionAudit")
+    if be_audit is not None and isinstance(be_audit, dict) and "nodes" in be_audit:
+        be_nodes = be_audit.get("nodes") or []
+        be_chrome = next((n for n in be_nodes if n.get("clientType") == "WIZ_CHROME_EXTEND"), None)
+        if be_chrome:
+            be_users = (be_chrome.get("analytics") or {}).get("performerCount", 0)
+            out["F_BE"] = str(be_users)
+        else:
+            out["F_BE"] = "0"
     else:
-        out["F_BE"] = "0"
+        out["F_BE"] = "No Permission"
 
-    mcp_users = (q5.get("mcpAudit") or q3.get("mcpAudit") or q1.get("mcpAudit") or {}).get("totalCount")
-    if mcp_users is not None:
-        out["F_WMCP"] = str(mcp_users)
+    mcp_audit = q5.get("mcpAudit") or q3.get("mcpAudit") or q1.get("mcpAudit")
+    if mcp_audit is not None and isinstance(mcp_audit, dict) and "totalCount" in mcp_audit:
+        mcp_users = mcp_audit.get("totalCount")
+        out["F_WMCP"] = str(mcp_users if mcp_users is not None else 0)
     else:
-        out["F_WMCP"] = "0"
+        out["F_WMCP"] = "No Permission"
 
     def fmt_date_str(dt_str):
         if not dt_str:
@@ -934,22 +938,19 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
 
     crit_ctrl_nodes = ((q3.get("criticalControls") or q2.get("criticalControls") or q1.get("criticalControls") or {}).get("nodes") or [])
     top_crit = extract_top_controls(crit_ctrl_nodes)
-    for i in range(3):
-        idx = i + 1
-        if i < len(top_crit):
-            out[f"CI_CONTROL_{idx}"] = top_crit[i][0]
-            out[f"CI_CBC_{idx}"] = fmt_r(top_crit[i][1])
-        elif len(top_crit) == 0:
-            labels = [
-                "All Critical Controls Compliant",
-                "No Critical Misconfigurations Detected",
-                "No Critical Toxic Combinations"
-            ]
-            out[f"CI_CONTROL_{idx}"] = labels[i]
-            out[f"CI_CBC_{idx}"] = "0"
-        else:
-            out[f"CI_CONTROL_{idx}"] = ""
+    if len(top_crit) == 0:
+        for idx in [1, 2, 3]:
+            out[f"CI_CONTROL_{idx}"] = "No current open Critical Issues in environment ✅"
             out[f"CI_CBC_{idx}"] = ""
+    else:
+        for i in range(3):
+            idx = i + 1
+            if i < len(top_crit):
+                out[f"CI_CONTROL_{idx}"] = top_crit[i][0]
+                out[f"CI_CBC_{idx}"] = fmt_r(top_crit[i][1])
+            else:
+                out[f"CI_CONTROL_{idx}"] = ""
+                out[f"CI_CBC_{idx}"] = ""
 
     high_ctrl_nodes = ((q3.get("highControls") or q2.get("highControls") or q1.get("highControls") or {}).get("nodes") or [])
     top_high = extract_top_controls(high_ctrl_nodes)

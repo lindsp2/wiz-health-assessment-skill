@@ -106,6 +106,19 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
                 result = json.loads(resp.read())
 
             data = result.get("data")
+            errors = result.get("errors") or []
+            is_perm_err = any(
+                ("access denied" in e.get("message", "").lower() or
+                 "permission" in e.get("message", "").lower() or
+                 "unauthorized" in e.get("message", "").lower() or
+                 "forbidden" in e.get("message", "").lower())
+                for e in errors if isinstance(e, dict)
+            )
+            if is_perm_err:
+                msg = errors[0].get("message") if errors else "access denied"
+                print(f"    [Permission restricted: {msg}] Continuing without retry.")
+                return result
+
             soft_fail = False
             if data is None:
                 soft_fail = True
@@ -113,8 +126,7 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
                 soft_fail = True
 
             if soft_fail and attempt < retries - 1:
-                errs = result.get("errors")
-                msg = errs[0].get("message") if errs else "null data"
+                msg = errors[0].get("message") if errors else "null data"
                 wait_s = 5 * (attempt + 1)
                 print(f"    [Soft failure: {msg}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
@@ -852,18 +864,54 @@ def main():
         "select": True
       }
     }
-    # Run core scalars first (retry until the important keys are present), then
-    # the flaky data-scan graphSearch. Merge both into a single res5 block so
-    # downstream classification/processing is unchanged.
+    # Isolated Audit Log query (requires admin:audit permissions)
+    q5_audit = """
+    query TamApiDeltaAuditLogs {
+      browserExtensionAudit: auditLogEntriesGroupedByValues(
+        first: 20
+        filterBy: {
+          actionV2: ["AiAssistantSendMessage"],
+          userType: [USER_ACCOUNT],
+          clientType: { notEquals: [UNKNOWN] }
+        }
+        groupBy: { fields: [CLIENT_TYPE] }
+      ) {
+        nodes {
+          clientType
+          analytics {
+            totalCount
+            performerCount
+          }
+        }
+      }
+      mcpAudit: auditLogEntriesGroupedByValues(
+        first: 0
+        filterBy: { clientType: { equals: [MCP] } }
+        groupBy: { fields: [PERFORMER] }
+      ) {
+        totalCount
+      }
+    }
+    """
+
+    # Run core scalars first, then audit logs (1 attempt), then data-scan graphSearch
     res5_core = run_gql(api_endpoint, access_token, q5_core,
                         required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
+    res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1)
     res5_ds = run_gql(api_endpoint, access_token, q5_ds, q5_vars)
-    res5 = {"data": {}}
+    
+    res5 = {"data": {}, "errors": []}
     res5["data"].update(res5_core.get("data") or {})
+    if res5_audit.get("data"):
+        res5["data"].update(res5_audit.get("data"))
+    if res5_audit.get("errors"):
+        res5["errors"].extend(res5_audit.get("errors"))
     res5["data"].update(res5_ds.get("data") or {})
+    
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
+    _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
     _ds_ok = bool((res5_ds.get("data") or {}).get("ds_total"))
-    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; data-scan coverage: {'OK' if _ds_ok else 'MISSING/blank'}")
+    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; data-scan coverage: {'OK' if _ds_ok else 'MISSING/blank'}")
 
     print("[*] Running K8s Coverage Ladder & Gaps query (canonical property counts)...")
     q_k8s_cov = """

@@ -122,6 +122,11 @@ def process_pptx_template(
                         cust = var_dict.get("CUSTOMER", "custom")
                         replaced_text = replaced_text.replace("custom TWDC Graph Controls", f"{cust} custom Graph Controls")
 
+                    # Clean up empty CI_CBC Issue labels when 0 critical controls
+                    for idx in [1, 2, 3]:
+                        if var_dict.get(f"CI_CBC_{idx}") == "":
+                            replaced_text = replaced_text.replace(f"{{{{CI_CBC_{idx}}}}} Issues", "").replace(f"{{{{CI_CBC_{idx}}}}}", "")
+
                     # Clean up empty date pair slashes
                     replaced_text = re.sub(r"\{\{[^}]+\}\}\s*/\s*\{\{[^}]+\}\}", "", replaced_text)
                     replaced_text = re.sub(r"\{\{[^}]+\s*/\s*[^}]+\}\}", "", replaced_text)
