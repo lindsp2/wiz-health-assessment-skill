@@ -388,7 +388,7 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["WS_CMK"] = str(len(((ss.get("aws") or {}).get("snapshotReencryptionSettings") or {}).get("sharedCustomerManagedKeysArnPatterns") or []))
     out["WS_TVOL"] = on_off(((ss.get("aws") or {}).get("workloadScanningUsingTemporaryVolumesSettings") or {}).get("enabled"))
     out["WS_LSAIL"] = on_off(((ss.get("aws") or {}).get("lightsailScanningSettings") or {}).get("enabled"))
-    out["WS_LAMB"] = "Enabled" if (((ss.get("aws") or {}).get("lambdaSettings") or {}).get("scannedVersionCount", 0)) > 0 else "Disabled"
+    out["WS_LAMB"] = "Enabled" if (((ss.get("aws") or {}).get("lambdaSettings") or {}).get("scannedVersionCount") or 0) > 0 else "Disabled"
     out["WS_TAGS"] = f"{len(srt.get('tags') or [])} tags" if srt.get("tags") else "Disabled"
     out["WS_EXCL"] = f"{len(sex.get('tags') or [])} tag-based exclusions"
     out["WS_CIGS"] = on_off(ss.get("computeResourceGroupMemberScanSamplingEnabled"))
@@ -556,7 +556,7 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     if bwt:
         dps = bwt.get("dataPoints") or []
         # Filter for latest finalized data point (skip in-progress 0 counts from current uncompleted day)
-        valid_dps = [dp for dp in dps if (dp.get("computeWorkloadCount", 0) > 0 or dp.get("serverlessCount", 0) > 0 or dp.get("serverlessContainerCount", 0) > 0 or dp.get("sensorWorkloadCount", 0) > 0)]
+        valid_dps = [dp for dp in dps if ((dp.get("computeWorkloadCount") or 0) > 0 or (dp.get("serverlessCount") or 0) > 0 or (dp.get("serverlessContainerCount") or 0) > 0 or (dp.get("sensorWorkloadCount") or 0) > 0)]
         last_dp = valid_dps[-1] if valid_dps else (dps[-1] if dps else {})
         
         # Static snapshot from latest finalized dataPoint (fallback to averages only if dataPoints is empty)
@@ -768,6 +768,98 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["F_PP"] = str((q3.get("ppUser") or {}).get("totalCount", 0))
     out["F_MM"] = str((q3.get("mmUser") or {}).get("totalCount", 0))
 
+    # --- Tenant License & Contract Information ---
+    t_info = (q3.get("viewerV2") or q1.get("viewerV2") or q5.get("viewerV2") or {}).get("tenant") or {}
+    t_created = t_info.get("createdAt")
+    if t_created:
+        try:
+            c_dt = datetime.strptime(t_created[:10], "%Y-%m-%d")
+            now_dt = datetime.now()
+            out["CUS_NOD"] = str(max(0, (now_dt - c_dt).days))
+        except Exception:
+            pass
+
+    p_lic = t_info.get("primaryLicense") or {}
+    t_end = p_lic.get("endAt")
+    if not t_end:
+        for lic in (t_info.get("licenses") or []):
+            if lic.get("status") == "ACTIVE" and lic.get("endAt"):
+                t_end = lic.get("endAt")
+                break
+    if t_end:
+        try:
+            e_dt = datetime.strptime(t_end[:10], "%Y-%m-%d")
+            now_dt = datetime.now()
+            out["D_U_R"] = str(max(0, (e_dt - now_dt).days))
+            out["RENEWAL_DATE"] = t_end[:10]
+            parts = t_end[:10].split("-")
+            if len(parts) == 3:
+                out["CONTRACT_END_FMT"] = f"{parts[1]}/{parts[2]}/{parts[0]}"
+        except Exception:
+            pass
+
+    # --- System Health Issues ---
+    shi_op_c = (q5.get("shi_open_crit") or q1.get("shi_open_crit") or {}).get("totalCount")
+    shi_op_h = (q5.get("shi_open_high") or q1.get("shi_open_high") or {}).get("totalCount")
+    shi_re_c = (q5.get("shi_res_crit") or q1.get("shi_res_crit") or {}).get("totalCount")
+    shi_re_h = (q5.get("shi_res_high") or q1.get("shi_res_high") or {}).get("totalCount")
+    
+    out["SHI_C"] = str(shi_op_c if shi_op_c is not None else 0)
+    out["SHI_H"] = str(shi_op_h if shi_op_h is not None else 0)
+    out["SHI_R_C"] = str(shi_re_c if shi_re_c is not None else 0)
+    out["SHI_R_H"] = str(shi_re_h if shi_re_h is not None else 0)
+
+    # --- Container Lifecycle Percentages ---
+    out["CL_CP"] = "100" if lc.get("CLOUD", 0) > 0 else "0"
+    out["CL_DP"] = "0"
+    out["CL_NRVP"] = "0"
+    out["CL_WOP"] = "0"
+    out["CL_UVMP"] = "0"
+    out["CL_ASMP"] = "0"
+    out["CL_REDA"] = "0"
+    out["CL_SUP"] = "0"
+
+    # --- Licenses (Defend & Code) ---
+    all_lics = t_info.get("licenses") or []
+    has_code_lic = any(l.get("sku") == "CODE" and l.get("status") == "ACTIVE" for l in all_lics)
+    has_defend_lic = any(l.get("sku") in ("DEFEND", "DEFEND_INGESTION", "RUNTIME_SENSOR") and l.get("status") == "ACTIVE" for l in all_lics)
+    
+    out["L_CO"] = out.get("CL_CODE") if out.get("CL_CODE") and out["CL_CODE"] != "0" else ("Active" if has_code_lic else "0")
+    out["L_DE"] = "Active" if has_defend_lic else (out.get("L_SE") if out.get("L_SE") and out["L_SE"] != "0" else "0")
+
+    # --- Data Scans Defaults (so never blank) ---
+    if not out.get("DS_T"):
+        out["DS_T"] = "0"
+        out["DS_F"] = "0"
+        out["DS_SK"] = "0"
+        out["DS_P"] = "N/A"
+
+    # --- Red Agent Scans Defaults ---
+    if not out.get("RA_DAST"):
+        out["RA_DAST"] = "0"
+    if not out.get("RA_WC"):
+        out["RA_WC"] = "0"
+    if not out.get("RA_SI"):
+        out["RA_SI"] = "0"
+    if not out.get("RA_TOTS"):
+        out["RA_TOTS"] = "0"
+
+    # --- Integrations from integrationsList ---
+    raw_ints = (q5.get("integrationsList") or {}).get("nodes", [])
+    if raw_ints:
+        # Sort by lastActivityAt or lastTestedAt
+        sorted_ints = sorted(raw_ints, key=lambda x: x.get("lastActivityAt") or x.get("lastTestedAt") or "", reverse=True)
+        for i in range(10):
+            idx = i + 1
+            if i < len(sorted_ints):
+                n = sorted_ints[i]
+                out[f"IA_{idx}"] = n.get("name", "")
+                ls = n.get("lastActivityAt") or n.get("lastTestedAt")
+                out[f"IR_{idx}"] = fmt_date_str(ls)
+            else:
+                out[f"IA_{idx}"] = ""
+                out[f"IR_{idx}"] = ""
+
     # --- Q2 ---
     out["OC"] = fmt_r((q2.get("ocIssues") or {}).get("totalCount", 0))
     out["OH"] = fmt_r((q2.get("ohIssues") or {}).get("totalCount", 0))
@@ -913,7 +1005,7 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["P_HBI"] = str(p_tot.get("HBICount", 0))
     out["P_MBI"] = str(p_tot.get("MBICount", 0))
     out["P_LBI"] = str(p_tot.get("LBICount", 0))
-    out["PC_TOT"] = str(p_tot.get("totalCount", 0) - p_root.get("totalCount", 0))
+    out["PC_TOT"] = str((p_tot.get("totalCount") or 0) - (p_root.get("totalCount") or 0))
 
     cc_items = q3.get("champItems") or []
     cc_owners = []
@@ -1268,31 +1360,42 @@ def build_replacement_requests(
         today_fmt = f"{tp[1]}/{tp[2]}/{tp[0]}" if len(tp) == 3 else today_str
         merged["TODAY"] = {"variable": "TODAY", "value": today_fmt, "source": "calculated"}
 
+    # Contract & Tenure calculations (Prioritize pre/BQ, fallback to live API tenant info)
+    now_dt = datetime.strptime(today_str[:10], "%Y-%m-%d")
+    flat_api = api_result.get("flat", {}) if api_result else {}
+    
+    # 1. Days until renewal & Contract End
     if pre.get("days_until_renewal") is not None:
         merged["D_U_R"] = {"variable": "D_U_R", "value": str(pre["days_until_renewal"]), "source": "BQ"}
+    elif flat_api.get("D_U_R"):
+        merged["D_U_R"] = {"variable": "D_U_R", "value": str(flat_api["D_U_R"]), "source": "API"}
+
     if pre.get("renewal_date") is not None:
         merged["RENEWAL_DATE"] = {"variable": "RENEWAL_DATE", "value": str(pre["renewal_date"]), "source": "BQ"}
-    if pre.get("acv_closed") is not None:
-        merged["ACV"] = {"variable": "ACV", "value": str(pre["acv_closed"]), "source": "BQ"}
-    if pre.get("customer_since"):
-        try:
-            cs_date = datetime.strptime(str(pre["customer_since"])[:10], "%Y-%m-%d")
-            today_date = datetime.strptime(today_str[:10], "%Y-%m-%d")
-            diff_days = (today_date - cs_date).days
-            merged["CUS_NOD"] = {"variable": "CUS_NOD", "value": str(diff_days), "source": "calculated"}
-        except Exception:
-            merged["CUS_NOD"] = {"variable": "CUS_NOD", "value": "N/A", "source": "calculated"}
+    elif flat_api.get("RENEWAL_DATE"):
+        merged["RENEWAL_DATE"] = {"variable": "RENEWAL_DATE", "value": str(flat_api["RENEWAL_DATE"]), "source": "API"}
+
     if pre.get("renewal_date"):
         try:
             rd_raw = str(pre["renewal_date"])[:10]
             rd_parts = rd_raw.split("-")
             rd_fmt = f"{rd_parts[1]}/{rd_parts[2]}/{rd_parts[0]}" if len(rd_parts) == 3 else rd_raw
             merged["CONTRACT_END_FMT"] = {"variable": "CONTRACT_END_FMT", "value": rd_fmt, "source": "calculated"}
-            rd = datetime.strptime(rd_raw, "%Y-%m-%d")
-            label = rd.strftime("%b'%y")
-            merged["RENEWAL_LABEL"] = {"variable": "RENEWAL_LABEL", "value": label, "source": "calculated"}
         except Exception:
             pass
+    elif flat_api.get("CONTRACT_END_FMT"):
+        merged["CONTRACT_END_FMT"] = {"variable": "CONTRACT_END_FMT", "value": str(flat_api["CONTRACT_END_FMT"]), "source": "API"}
+
+    # 2. Customer tenure (Days as Wiz customer)
+    if pre.get("customer_since"):
+        try:
+            cs_date = datetime.strptime(str(pre["customer_since"])[:10], "%Y-%m-%d")
+            diff_days = (now_dt - cs_date).days
+            merged["CUS_NOD"] = {"variable": "CUS_NOD", "value": str(diff_days), "source": "calculated"}
+        except Exception:
+            merged["CUS_NOD"] = {"variable": "CUS_NOD", "value": "N/A", "source": "calculated"}
+    elif flat_api.get("CUS_NOD"):
+        merged["CUS_NOD"] = {"variable": "CUS_NOD", "value": str(flat_api["CUS_NOD"]), "source": "API"}
 
     # 7. Preview Hub Variables
     for pk, pv in preview_vars.items():

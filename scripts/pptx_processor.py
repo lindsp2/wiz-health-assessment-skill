@@ -7,6 +7,7 @@ cleans up empty date pairs, and sweeps unfilled tokens without requiring externa
 """
 
 import copy
+import datetime
 import os
 import re
 import xml.etree.ElementTree as ET
@@ -37,7 +38,7 @@ def process_pptx_template(
     2. Expands multiline variables into distinct paragraphs preserving typography.
     3. Cleans up empty PI date pairs (e.g. ' / ').
     4. Highlights enabled preview features on preview slides.
-    5. Sweeps any remaining unfilled {{...}} tokens.
+    5. Sweeps any remaining unfilled {{...}} tokens across run boundaries.
     """
     template_file = Path(template_path)
     if not template_file.is_file():
@@ -63,6 +64,11 @@ def process_pptx_template(
                 var_dict[f"{prefix}_{s}_FA"] = ""
                 var_dict[f"{prefix}_{s}_LA"] = ""
 
+    # Ensure date fallback
+    today_str = datetime.datetime.now().strftime("%B %d, %Y")
+    if not var_dict.get("DATE"):
+        var_dict["DATE"] = today_str
+
     enabled_titles = {t.strip().lower() for t in (enabled_preview_titles or set())}
     replacements_made = 0
     highlighted_count = 0
@@ -76,72 +82,96 @@ def process_pptx_template(
                 root = ET.fromstring(content)
                 slide_modified = False
 
-                # Process all text bodies in shapes and table cells
-                for txBody in root.findall(".//p:txBody", NS) + root.findall(".//a:txBody", NS):
-                    paragraphs = list(txBody.findall("a:p", NS))
-                    for p in paragraphs:
-                        t_elems = p.findall(".//a:t", NS)
-                        if not t_elems:
-                            continue
+                # Build parent map for inserting expanded multiline paragraphs
+                parent_map = {c: p for p in root.iter() for c in p}
 
-                        full_text = "".join(t.text or "" for t in t_elems)
-                        if "{{" not in full_text:
-                            continue
+                paragraphs = list(root.findall(".//a:p", NS))
+                for p in paragraphs:
+                    t_elems = p.findall(".//a:t", NS)
+                    if not t_elems:
+                        continue
 
-                        # Check if this paragraph contains multiline tokens
-                        replaced_text = full_text
-                        has_multiline = False
+                    full_text = "".join(t.text or "" for t in t_elems)
+                    if "{{" not in full_text and "{Date}" not in full_text and "{date}" not in full_text:
+                        continue
 
-                        for k, v in var_dict.items():
-                            tok = "{{" + k + "}}"
-                            if tok in replaced_text:
-                                if "\n" in v:
-                                    has_multiline = True
-                                replaced_text = replaced_text.replace(tok, v)
-                                replacements_made += 1
+                    replaced_text = full_text
 
-                        # Clean up empty date pair slashes
-                        replaced_text = re.sub(r"\{\{[^}]+\}\}\s*/\s*\{\{[^}]+\}\}", "", replaced_text)
-                        replaced_text = re.sub(r"\{\{[^}]+\s*/\s*[^}]+\}\}", "", replaced_text)
+                    # Handle special single-curly date placeholders
+                    if "{Date}" in replaced_text:
+                        replaced_text = replaced_text.replace("{Date}", today_str)
+                    if "{date}" in replaced_text:
+                        replaced_text = replaced_text.replace("{date}", today_str)
 
-                        if replaced_text != full_text:
-                            slide_modified = True
-                            if has_multiline and "\n" in replaced_text:
-                                # Multiline expansion: split into separate paragraphs
-                                lines = [l for l in replaced_text.split("\n") if l.strip()]
-                                p_index = list(txBody).index(p)
-                                for i, line in enumerate(lines):
-                                    p_clone = copy.deepcopy(p)
-                                    clone_t_elems = p_clone.findall(".//a:t", NS)
-                                    if clone_t_elems:
-                                        clone_t_elems[0].text = line
-                                        for other in clone_t_elems[1:]:
-                                            other.text = ""
+                    # Handle spacing if "for{{CUSTOMER}}"
+                    if "for{{" in replaced_text:
+                        replaced_text = re.sub(r"for\{\{", "for {{", replaced_text)
 
-                                    # Check for soft green highlight
-                                    clean_line_title = line.lstrip("• ").split(" [")[0].strip().lower()
-                                    if clean_line_title and clean_line_title in enabled_titles:
-                                        # Add highlight to rPr
-                                        for r in p_clone.findall(".//a:r", NS):
-                                            rPr = r.find("a:rPr", NS)
-                                            if rPr is None:
-                                                rPr = ET.SubElement(r, "{http://schemas.openxmlformats.org/drawingml/2006/main}rPr")
-                                            # Add highlight element
-                                            hl = rPr.find("a:highlight", NS)
-                                            if hl is None:
-                                                hl = ET.SubElement(rPr, "{http://schemas.openxmlformats.org/drawingml/2006/main}highlight")
-                                                srgb = ET.SubElement(hl, "{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr")
-                                                srgb.set("val", "E0F5E0")
-                                                highlighted_count += 1
+                    has_multiline = False
 
-                                    txBody.insert(p_index + i, p_clone)
-                                txBody.remove(p)
-                            else:
-                                t_elems[0].text = replaced_text
-                                for other in t_elems[1:]:
-                                    other.text = ""
+                    for k, v in var_dict.items():
+                        tok = "{{" + k + "}}"
+                        if tok in replaced_text:
+                            if "\n" in v:
+                                has_multiline = True
+                            replaced_text = replaced_text.replace(tok, v)
+                            replacements_made += 1
 
-                # Token sweep for remaining unpopulated tokens
+                    # Clean up hardcoded customer text on Slide 12
+                    if "custom TWDC Graph Controls" in replaced_text:
+                        cust = var_dict.get("CUSTOMER", "custom")
+                        replaced_text = replaced_text.replace("custom TWDC Graph Controls", f"{cust} custom Graph Controls")
+
+                    # Clean up empty date pair slashes
+                    replaced_text = re.sub(r"\{\{[^}]+\}\}\s*/\s*\{\{[^}]+\}\}", "", replaced_text)
+                    replaced_text = re.sub(r"\{\{[^}]+\s*/\s*[^}]+\}\}", "", replaced_text)
+                    
+                    # Clean up dangling %%%%%% artifacts
+                    replaced_text = re.sub(r"%{2,}", "", replaced_text)
+
+                    # Sweep any remaining unfilled tokens in this paragraph
+                    remaining_in_p = re.findall(r"\{\{[^}]+\}\}", replaced_text)
+                    if remaining_in_p:
+                        swept_tokens += len(remaining_in_p)
+                        replaced_text = re.sub(r"\{\{[^}]+\}\}", "", replaced_text)
+
+                    if replaced_text != full_text:
+                        slide_modified = True
+                        parent_tx = parent_map.get(p)
+                        if has_multiline and "\n" in replaced_text and parent_tx is not None:
+                            # Multiline expansion: split into separate paragraphs
+                            lines = [l for l in replaced_text.split("\n") if l.strip()]
+                            p_index = list(parent_tx).index(p)
+                            for i, line in enumerate(lines):
+                                p_clone = copy.deepcopy(p)
+                                clone_t_elems = p_clone.findall(".//a:t", NS)
+                                if clone_t_elems:
+                                    clone_t_elems[0].text = line
+                                    for other in clone_t_elems[1:]:
+                                        other.text = ""
+
+                                # Check for soft green highlight
+                                clean_line_title = line.lstrip("• ").split(" [")[0].strip().lower()
+                                if clean_line_title and clean_line_title in enabled_titles:
+                                    for r in p_clone.findall(".//a:r", NS):
+                                        rPr = r.find("a:rPr", NS)
+                                        if rPr is None:
+                                            rPr = ET.SubElement(r, "{http://schemas.openxmlformats.org/drawingml/2006/main}rPr")
+                                        hl = rPr.find("a:highlight", NS)
+                                        if hl is None:
+                                            hl = ET.SubElement(rPr, "{http://schemas.openxmlformats.org/drawingml/2006/main}highlight")
+                                            srgb = ET.SubElement(hl, "{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr")
+                                            srgb.set("val", "E0F5E0")
+                                            highlighted_count += 1
+
+                                parent_tx.insert(p_index + i, p_clone)
+                            parent_tx.remove(p)
+                        else:
+                            t_elems[0].text = replaced_text
+                            for other in t_elems[1:]:
+                                other.text = ""
+
+                # Global sweep fallback across any straggler tokens
                 for t in root.findall(".//a:t", NS):
                     if t.text and "{{" in t.text:
                         swept_count_in_text = len(re.findall(r"\{\{[^}]+\}\}", t.text))

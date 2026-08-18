@@ -50,7 +50,9 @@ def get_wiz_access_token():
 
     client_id = env_vars.get("WIZ_CLIENT_ID") or os.environ.get("WIZ_CLIENT_ID")
     client_secret = env_vars.get("WIZ_CLIENT_SECRET") or os.environ.get("WIZ_CLIENT_SECRET")
-    auth_url = env_vars.get("WIZ_AUTH_URL") or os.environ.get("WIZ_AUTH_URL", "https://auth.wiz.io/oauth/token")
+    auth_url = env_vars.get("WIZ_AUTH_URL") or os.environ.get("WIZ_AUTH_URL", "https://auth.app.wiz.io/oauth/token")
+    if auth_url == "https://auth.wiz.io/oauth/token":
+        auth_url = "https://auth.app.wiz.io/oauth/token"
     datacenter = env_vars.get("WIZ_DATACENTER") or os.environ.get("WIZ_DATACENTER", "us100")
     api_endpoint = env_vars.get("WIZ_API_ENDPOINT") or os.environ.get("WIZ_API_ENDPOINT", f"https://api.{datacenter}.app.wiz.io/graphql")
 
@@ -67,7 +69,14 @@ def get_wiz_access_token():
         "audience": "wiz-api"
     }).encode("utf-8")
 
-    req = urllib.request.Request(auth_url, data=auth_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    req = urllib.request.Request(
+        auth_url,
+        data=auth_data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+    )
     with urllib.request.urlopen(req) as resp:
         token = json.loads(resp.read()).get("access_token")
     return token, api_endpoint
@@ -374,7 +383,28 @@ def main():
         owner { id name email }
       }
       tcs: tenantContactSettings { supportContacts { id } }
-      viewerV2 { tenant { industry licenses { id sku status } } }
+      viewerV2 {
+        tenant {
+          id
+          name
+          industry
+          createdAt
+          primaryLicense {
+            id
+            sku
+            status
+            startAt
+            endAt
+          }
+          licenses {
+            id
+            sku
+            status
+            startAt
+            endAt
+          }
+        }
+      }
       secScore: monitoredMetrics(first: 5, filterBy: {type: [SECURITY_SCORE], builtin: true}) {
         nodes {
           id name type
@@ -703,6 +733,21 @@ def main():
       customFrameworksEnabled: securityFrameworks(first: 0, filterBy: { createdBy: USER, enabled: true }) { totalCount }
       customFrameworksDisabled: securityFrameworks(first: 0, filterBy: { createdBy: USER, enabled: false }) { totalCount }
       customFrameworksAll: securityFrameworks(first: 0, filterBy: { createdBy: USER }) { totalCount }
+      shi_open_crit: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL] }) { totalCount }
+      shi_open_high: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [HIGH] }) { totalCount }
+      shi_res_crit: systemHealthIssues(first: 0, filterBy: { status: [RESOLVED], severity: [CRITICAL] }) { totalCount }
+      shi_res_high: systemHealthIssues(first: 0, filterBy: { status: [RESOLVED], severity: [HIGH] }) { totalCount }
+      integrationsList: integrations(first: 50) {
+        nodes {
+          id
+          name
+          type
+          status
+          lastTestedAt
+          lastActivityAt
+        }
+        totalCount
+      }
       aiSettings {
         redAgent {
           isEnabled

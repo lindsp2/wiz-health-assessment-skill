@@ -114,6 +114,21 @@ class GoogleSlidesClient:
             {"replaceAllText": {"containsText": {"text": t, "matchCase": True}, "replaceText": ""}}
             for t in tokens
         ]
+        # Clean up Slide 12 hardcoded customer text
+        sweep_requests.append({
+            "replaceAllText": {
+                "containsText": {"text": "custom TWDC Graph Controls", "matchCase": True},
+                "replaceText": "custom Graph Controls"
+            }
+        })
+        # Clean up %%%%%% artifacts on Slide 4
+        for pat in ["%%%%%%", "%%%%%", "%%%%", "%%%", "%%"]:
+            sweep_requests.append({
+                "replaceAllText": {
+                    "containsText": {"text": pat, "matchCase": True},
+                    "replaceText": ""
+                }
+            })
         self.batch_update_presentation(presentation_id, sweep_requests)
         return {"swept_count": len(tokens), "tokens": list(tokens)}
 
