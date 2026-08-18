@@ -826,32 +826,92 @@ def main():
     }
     """
 
-    # --- Data-scan coverage (accurate multi-type scoped queries to bypass 10k ceiling) ---
+    # --- Data-scan coverage (accurate multi-type scoped queries covering all DSPM Billable Units) ---
+    # Batch 1: Storage Buckets, Databases, AI Datasets
     q5_ds_b1 = """
     query TamApiDeltaDataScansBatch1 {
-      bucket_total: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
-      bucket_failed: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
-      bucket_skipped: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+      b1_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [BUCKET, DATABASE, AI_DATASET]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
 
-      db_total: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
-      db_failed: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
-      db_skipped: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+      b1_failed: graphSearch(projectId: "*", quick: true, query: {
+        type: [BUCKET, DATABASE, AI_DATASET]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
 
-      ai_total: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
-      ai_failed: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
-      ai_skipped: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+      b1_skipped: graphSearch(projectId: "*", quick: true, query: {
+        type: [BUCKET, DATABASE, AI_DATASET]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
     }
     """
 
+    # Batch 2: Serverless, Virtual Drives, File System Services, Hybrid Storage Services, Volumes
     q5_ds_b2 = """
     query TamApiDeltaDataScansBatch2 {
-      sls_total: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
-      sls_failed: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
-      sls_skipped: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+      b2_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
 
-      vol_total: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
-      vol_failed: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
-      vol_skipped: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+      b2_failed: graphSearch(projectId: "*", quick: true, query: {
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
+
+      b2_skipped: graphSearch(projectId: "*", quick: true, query: {
+        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, HYBRID_STORAGE_SERVICE, VOLUME]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: {
+            type: [SECURITY_TOOL_SCAN]
+            select: true
+            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } }
+          }
+        }]
+        select: true
+      }) { totalCount maxCountReached }
     }
     """
 
@@ -897,27 +957,9 @@ def main():
     d1 = res5_ds_b1.get("data", {})
     d2 = res5_ds_b2.get("data", {})
 
-    ds_tot_sum = sum([
-        (d1.get("bucket_total") or {}).get("totalCount", 0),
-        (d1.get("db_total") or {}).get("totalCount", 0),
-        (d1.get("ai_total") or {}).get("totalCount", 0),
-        (d2.get("sls_total") or {}).get("totalCount", 0),
-        (d2.get("vol_total") or {}).get("totalCount", 0),
-    ])
-    ds_fail_sum = sum([
-        (d1.get("bucket_failed") or {}).get("totalCount", 0),
-        (d1.get("db_failed") or {}).get("totalCount", 0),
-        (d1.get("ai_failed") or {}).get("totalCount", 0),
-        (d2.get("sls_failed") or {}).get("totalCount", 0),
-        (d2.get("vol_failed") or {}).get("totalCount", 0),
-    ])
-    ds_skip_sum = sum([
-        (d1.get("bucket_skipped") or {}).get("totalCount", 0),
-        (d1.get("db_skipped") or {}).get("totalCount", 0),
-        (d1.get("ai_skipped") or {}).get("totalCount", 0),
-        (d2.get("sls_skipped") or {}).get("totalCount", 0),
-        (d2.get("vol_skipped") or {}).get("totalCount", 0),
-    ])
+    ds_tot_sum = (d1.get("b1_total") or {}).get("totalCount", 0) + (d2.get("b2_total") or {}).get("totalCount", 0)
+    ds_fail_sum = (d1.get("b1_failed") or {}).get("totalCount", 0) + (d2.get("b2_failed") or {}).get("totalCount", 0)
+    ds_skip_sum = (d1.get("b1_skipped") or {}).get("totalCount", 0) + (d2.get("b2_skipped") or {}).get("totalCount", 0)
 
     res5 = {"data": {}, "errors": []}
     res5["data"].update(res5_core.get("data") or {})
