@@ -826,44 +826,35 @@ def main():
     }
     """
 
-    # --- Data-scan coverage (flaky graphSearch; isolated) ---
-    q5_ds = """
-    query TamApiDeltaDataScans(
-      $dsTotalQuery: GraphEntityQueryInput
-      $dsFailedQuery: GraphEntityQueryInput
-      $dsSkippedQuery: GraphEntityQueryInput
-    ) {
-      ds_total: graphSearch(query: $dsTotalQuery, projectId: "*", quick: true) { totalCount }
-      ds_failed: graphSearch(query: $dsFailedQuery, projectId: "*", quick: true) { totalCount }
-      ds_skipped: graphSearch(query: $dsSkippedQuery, projectId: "*", quick: true) { totalCount }
+    # --- Data-scan coverage (accurate multi-type scoped queries to bypass 10k ceiling) ---
+    q5_ds_b1 = """
+    query TamApiDeltaDataScansBatch1 {
+      bucket_total: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
+      bucket_failed: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
+      bucket_skipped: graphSearch(projectId: "*", quick: true, query: { type: [BUCKET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+
+      db_total: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
+      db_failed: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
+      db_skipped: graphSearch(projectId: "*", quick: true, query: { type: [DATABASE], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+
+      ai_total: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
+      ai_failed: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
+      ai_skipped: graphSearch(projectId: "*", quick: true, query: { type: [AI_DATASET], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
     }
     """
-    q5_vars = {
-      "dsTotalQuery": {
-        "type": ["CLOUD_RESOURCE"],
-        "relationships": [{
-          "type": [{"type": "SCANNED", "reverse": True}],
-          "with": {"type": ["SECURITY_TOOL_SCAN"], "select": True, "where": {"name": {"CONTAINS": ["data scan"]}}}
-        }],
-        "select": True
-      },
-      "dsFailedQuery": {
-        "type": ["CLOUD_RESOURCE"],
-        "relationships": [{
-          "type": [{"type": "SCANNED", "reverse": True}],
-          "with": {"type": ["SECURITY_TOOL_SCAN"], "select": True, "where": {"name": {"CONTAINS": ["data scan"]}, "status": {"EQUALS": ["ScanStatusError"]}}}
-        }],
-        "select": True
-      },
-      "dsSkippedQuery": {
-        "type": ["CLOUD_RESOURCE"],
-        "relationships": [{
-          "type": [{"type": "SCANNED", "reverse": True}],
-          "with": {"type": ["SECURITY_TOOL_SCAN"], "select": True, "where": {"name": {"CONTAINS": ["data scan"]}, "status": {"EQUALS": ["ScanStatusSkipped"]}}}
-        }],
-        "select": True
-      }
+
+    q5_ds_b2 = """
+    query TamApiDeltaDataScansBatch2 {
+      sls_total: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
+      sls_failed: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
+      sls_skipped: graphSearch(projectId: "*", quick: true, query: { type: [SERVERLESS], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
+
+      vol_total: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } } }], select: true }) { totalCount }
+      vol_failed: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } } } }], select: true }) { totalCount }
+      vol_skipped: graphSearch(projectId: "*", quick: true, query: { type: [VOLUME], relationships: [{ type: [{ type: SCANNED, reverse: true }], with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } } }], select: true }) { totalCount }
     }
+    """
+
     # Isolated Audit Log query (requires admin:audit permissions)
     q5_audit = """
     query TamApiDeltaAuditLogs {
@@ -894,24 +885,54 @@ def main():
     }
     """
 
-    # Run core scalars first, then audit logs (1 attempt), then data-scan graphSearch
+    # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries
     res5_core = run_gql(api_endpoint, access_token, q5_core,
                         required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
     res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1)
-    res5_ds = run_gql(api_endpoint, access_token, q5_ds, q5_vars)
     
+    res5_ds_b1 = run_gql(api_endpoint, access_token, q5_ds_b1)
+    time.sleep(1.5)
+    res5_ds_b2 = run_gql(api_endpoint, access_token, q5_ds_b2)
+
+    d1 = res5_ds_b1.get("data", {})
+    d2 = res5_ds_b2.get("data", {})
+
+    ds_tot_sum = sum([
+        (d1.get("bucket_total") or {}).get("totalCount", 0),
+        (d1.get("db_total") or {}).get("totalCount", 0),
+        (d1.get("ai_total") or {}).get("totalCount", 0),
+        (d2.get("sls_total") or {}).get("totalCount", 0),
+        (d2.get("vol_total") or {}).get("totalCount", 0),
+    ])
+    ds_fail_sum = sum([
+        (d1.get("bucket_failed") or {}).get("totalCount", 0),
+        (d1.get("db_failed") or {}).get("totalCount", 0),
+        (d1.get("ai_failed") or {}).get("totalCount", 0),
+        (d2.get("sls_failed") or {}).get("totalCount", 0),
+        (d2.get("vol_failed") or {}).get("totalCount", 0),
+    ])
+    ds_skip_sum = sum([
+        (d1.get("bucket_skipped") or {}).get("totalCount", 0),
+        (d1.get("db_skipped") or {}).get("totalCount", 0),
+        (d1.get("ai_skipped") or {}).get("totalCount", 0),
+        (d2.get("sls_skipped") or {}).get("totalCount", 0),
+        (d2.get("vol_skipped") or {}).get("totalCount", 0),
+    ])
+
     res5 = {"data": {}, "errors": []}
     res5["data"].update(res5_core.get("data") or {})
     if res5_audit.get("data"):
         res5["data"].update(res5_audit.get("data"))
     if res5_audit.get("errors"):
         res5["errors"].extend(res5_audit.get("errors"))
-    res5["data"].update(res5_ds.get("data") or {})
+    
+    res5["data"]["ds_total"] = {"totalCount": ds_tot_sum}
+    res5["data"]["ds_failed"] = {"totalCount": ds_fail_sum}
+    res5["data"]["ds_skipped"] = {"totalCount": ds_skip_sum}
     
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
     _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
-    _ds_ok = bool((res5_ds.get("data") or {}).get("ds_total"))
-    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; data-scan coverage: {'OK' if _ds_ok else 'MISSING/blank'}")
+    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans: {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")
 
     print("[*] Running K8s Coverage Ladder & Gaps query (canonical property counts)...")
     q_k8s_cov = """
