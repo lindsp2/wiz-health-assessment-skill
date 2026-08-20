@@ -854,14 +854,13 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["L_CO"] = out.get("CL_CODE") if out.get("CL_CODE") and out["CL_CODE"] != "0" else ("Active" if has_code_lic else "0")
     out["L_DE"] = "Active" if has_defend_lic else (out.get("L_SE") if out.get("L_SE") and out["L_SE"] != "0" else "0")
 
-    # --- Granular Data Scans & Non-OS ---
+    # --- Granular Data Scans ---
     ds_b_cnt = (q5.get("ds_bucket") or q1.get("ds_bucket") or {}).get("totalCount")
     ds_db_cnt = (q5.get("ds_db") or q1.get("ds_db") or {}).get("totalCount")
     ds_dw_cnt = (q5.get("ds_dw") or q1.get("ds_dw") or {}).get("totalCount")
     ds_vd_cnt = (q5.get("ds_vdrv") or q1.get("ds_vdrv") or {}).get("totalCount")
     ds_ai_cnt = (q5.get("ds_ai") or q1.get("ds_ai") or {}).get("totalCount")
     ds_fss_cnt = (q5.get("ds_fss") or q1.get("ds_fss") or {}).get("totalCount")
-    non_t_cnt = (q5.get("non_os_total") or q1.get("non_os_total") or {}).get("totalCount")
 
     out["DS_B"] = fmt_r(ds_b_cnt if ds_b_cnt is not None else 0)
     out["DS_PD"] = fmt_r(ds_db_cnt if ds_db_cnt is not None else 0)
@@ -869,7 +868,60 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["DS_VD"] = fmt_r(ds_vd_cnt if ds_vd_cnt is not None else 0)
     out["DS_AI"] = fmt_r(ds_ai_cnt if ds_ai_cnt is not None else 0)
     out["DS_FSS"] = fmt_r(ds_fss_cnt if ds_fss_cnt is not None else 0)
-    out["NON_T"] = fmt_r(non_t_cnt if non_t_cnt is not None else 0)
+
+    # --- Non-OS Disk Scans ---
+    non_t = (q5.get("non_os_total") or q1.get("non_os_total") or {}).get("totalCount")
+    non_s = (q5.get("non_os_success") or q1.get("non_os_success") or {}).get("totalCount")
+    non_f = (q5.get("non_os_failed") or q1.get("non_os_failed") or {}).get("totalCount")
+    non_sk = (q5.get("non_os_skipped") or q1.get("non_os_skipped") or {}).get("totalCount")
+
+    out["NON_T"] = fmt_r(non_t if non_t is not None else 0)
+    out["NON_S"] = fmt_r(non_s if non_s is not None else 0)
+    out["NON_F"] = fmt_r(non_f if non_f is not None else 0)
+    out["NON_SK"] = fmt_r(non_sk if non_sk is not None else 0)
+    if non_t and non_t > 0:
+        non_cov = non_s if non_s is not None else max(0, non_t - (non_f or 0) - (non_sk or 0))
+        out["NON_C"] = f"{int(math.floor(non_cov / non_t * 100))}%"
+        out["NON_P"] = out["NON_C"]
+    else:
+        out["NON_C"] = "N/A"
+        out["NON_P"] = "N/A"
+
+    # --- Registry Container Image Scans ---
+    rci_t = (q5.get("rci_total") or q1.get("rci_total") or {}).get("totalCount")
+    rci_s = (q5.get("rci_success") or q1.get("rci_success") or {}).get("totalCount")
+    rci_f = (q5.get("rci_failed") or q1.get("rci_failed") or {}).get("totalCount")
+    rci_sk = (q5.get("rci_skipped") or q1.get("rci_skipped") or {}).get("totalCount")
+
+    out["RCI_T"] = fmt_r(rci_t if rci_t is not None else 0)
+    out["RCI_S"] = fmt_r(rci_s if rci_s is not None else 0)
+    out["RCI_F"] = fmt_r(rci_f if rci_f is not None else 0)
+    out["RCI_SK"] = fmt_r(rci_sk if rci_sk is not None else 0)
+    if rci_t and rci_t > 0:
+        rci_cov = rci_s if rci_s is not None else max(0, rci_t - (rci_f or 0) - (rci_sk or 0))
+        out["RCI_C"] = f"{int(math.floor(rci_cov / rci_t * 100))}%"
+        out["RCI_P"] = out["RCI_C"]
+    else:
+        out["RCI_C"] = "N/A"
+        out["RCI_P"] = "N/A"
+
+    # --- VM Image Workload Scans ---
+    vmi_t = (q5.get("vmi_total") or q1.get("vmi_total") or {}).get("totalCount")
+    vmi_s = (q5.get("vmi_success") or q1.get("vmi_success") or {}).get("totalCount")
+    vmi_f = (q5.get("vmi_failed") or q1.get("vmi_failed") or {}).get("totalCount")
+    vmi_sk = (q5.get("vmi_skipped") or q1.get("vmi_skipped") or {}).get("totalCount")
+
+    out["VMI_T"] = fmt_r(vmi_t if vmi_t is not None else 0)
+    out["VMI_S"] = fmt_r(vmi_s if vmi_s is not None else 0)
+    out["VMI_F"] = fmt_r(vmi_f if vmi_f is not None else 0)
+    out["VMI_SK"] = fmt_r(vmi_sk if vmi_sk is not None else 0)
+    if vmi_t and vmi_t > 0:
+        vmi_cov = vmi_s if vmi_s is not None else max(0, vmi_t - (vmi_f or 0) - (vmi_sk or 0))
+        out["VMI_C"] = f"{int(math.floor(vmi_cov / vmi_t * 100))}%"
+        out["VMI_P"] = out["VMI_C"]
+    else:
+        out["VMI_C"] = "N/A"
+        out["VMI_P"] = "N/A"
 
     # --- Data Scans Defaults (so never blank) ---
     if not out.get("DS_T"):

@@ -957,12 +957,6 @@ def main():
         }]
         select: true
       }) { totalCount }
-
-      non_os_total: graphSearch(projectId: "*", quick: true, query: {
-        type: [SECURITY_TOOL_SCAN]
-        where: { name: { CONTAINS: ["non-OS scan", "non-os scan", "Non-OS scan"] } }
-        select: true
-      }) { totalCount }
     }
     """
 
@@ -976,6 +970,108 @@ def main():
       shi_k8s: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [KUBERNETES_CONNECTOR, ADMISSION_CONTROLLER, KUBERNETES_AUDIT_LOG_COLLECTOR] }) { totalCount }
       shi_vcs: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [VERSION_CONTROL_CONNECTOR, CICD_PLATFORM_CONNECTOR] }) { totalCount }
       shi_brk: systemHealthIssues(first: 0, filterBy: { status: [OPEN], severity: [CRITICAL, HIGH], deploymentType: [BROKER, WIZ_CLI] }) { totalCount }
+    }
+    """
+
+    # Batch 4: Non-OS Disks Workload Scans
+    q5_non_os = """
+    query TamApiDeltaNonOsScans {
+      non_os_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [VOLUME, VIRTUAL_MACHINE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] } } }
+        }]
+      }) { totalCount }
+      non_os_success: graphSearch(projectId: "*", quick: true, query: {
+        type: [VOLUME, VIRTUAL_MACHINE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+        }]
+      }) { totalCount }
+      non_os_failed: graphSearch(projectId: "*", quick: true, query: {
+        type: [VOLUME, VIRTUAL_MACHINE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusError"] } } }
+        }]
+      }) { totalCount }
+      non_os_skipped: graphSearch(projectId: "*", quick: true, query: {
+        type: [VOLUME, VIRTUAL_MACHINE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+        }]
+      }) { totalCount }
+    }
+    """
+
+    # Batch 5: Registry Container Images Workload Scans
+    q5_rci = """
+    query TamApiDeltaRciScans {
+      rci_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [CONTAINER_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
+        }]
+      }) { totalCount }
+      rci_success: graphSearch(projectId: "*", quick: true, query: {
+        type: [CONTAINER_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+        }]
+      }) { totalCount }
+      rci_failed: graphSearch(projectId: "*", quick: true, query: {
+        type: [CONTAINER_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
+        }]
+      }) { totalCount }
+      rci_skipped: graphSearch(projectId: "*", quick: true, query: {
+        type: [CONTAINER_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+        }]
+      }) { totalCount }
+    }
+    """
+
+    # Batch 6: VM Images Workload Scans
+    q5_vmi = """
+    query TamApiDeltaVmiScans {
+      vmi_total: graphSearch(projectId: "*", quick: true, query: {
+        type: [VIRTUAL_MACHINE_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
+        }]
+      }) { totalCount }
+      vmi_success: graphSearch(projectId: "*", quick: true, query: {
+        type: [VIRTUAL_MACHINE_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+        }]
+      }) { totalCount }
+      vmi_failed: graphSearch(projectId: "*", quick: true, query: {
+        type: [VIRTUAL_MACHINE_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
+        }]
+      }) { totalCount }
+      vmi_skipped: graphSearch(projectId: "*", quick: true, query: {
+        type: [VIRTUAL_MACHINE_IMAGE]
+        relationships: [{
+          type: [{ type: SCANNED, reverse: true }]
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+        }]
+      }) { totalCount }
     }
     """
 
@@ -1009,7 +1105,7 @@ def main():
     }
     """
 
-    # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries, then SHI breakdown
+    # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries, then SHI breakdown, then workload scans
     res5_core = run_gql(api_endpoint, access_token, q5_core,
                         required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
     res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1)
@@ -1019,10 +1115,19 @@ def main():
     res5_ds_b2 = run_gql(api_endpoint, access_token, q5_ds_b2)
     time.sleep(1.5)
     res5_shi = run_gql(api_endpoint, access_token, q5_shi_breakdown)
+    time.sleep(1.5)
+    res5_non_os = run_gql(api_endpoint, access_token, q5_non_os)
+    time.sleep(1.5)
+    res5_rci = run_gql(api_endpoint, access_token, q5_rci)
+    time.sleep(1.5)
+    res5_vmi = run_gql(api_endpoint, access_token, q5_vmi)
 
     d1 = res5_ds_b1.get("data", {})
     d2 = res5_ds_b2.get("data", {})
     d_shi = res5_shi.get("data", {})
+    d_non_os = res5_non_os.get("data", {})
+    d_rci = res5_rci.get("data", {})
+    d_vmi = res5_vmi.get("data", {})
 
     ds_tot_sum = (d1.get("b1_total") or {}).get("totalCount", 0) + (d2.get("b2_total") or {}).get("totalCount", 0)
     ds_fail_sum = (d1.get("b1_failed") or {}).get("totalCount", 0) + (d2.get("b2_failed") or {}).get("totalCount", 0)
@@ -1039,13 +1144,17 @@ def main():
     res5["data"]["ds_failed"] = {"totalCount": ds_fail_sum}
     res5["data"]["ds_skipped"] = {"totalCount": ds_skip_sum}
     
-    # Granular DSPM and Non-OS
+    # Granular DSPM
     res5["data"]["ds_bucket"] = d1.get("ds_bucket") or {"totalCount": 0}
     res5["data"]["ds_db"] = d1.get("ds_db") or {"totalCount": 0}
     res5["data"]["ds_ai"] = d1.get("ds_ai") or {"totalCount": 0}
     res5["data"]["ds_vdrv"] = d2.get("ds_vdrv") or {"totalCount": 0}
     res5["data"]["ds_fss"] = d2.get("ds_fss") or {"totalCount": 0}
-    res5["data"]["non_os_total"] = d2.get("non_os_total") or {"totalCount": 0}
+
+    # Granular Workload Scans
+    res5["data"].update(d_non_os)
+    res5["data"].update(d_rci)
+    res5["data"].update(d_vmi)
 
     # Granular SHI by resource bucket
     res5["data"].update(d_shi)
