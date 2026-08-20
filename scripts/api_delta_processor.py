@@ -870,17 +870,21 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["DS_FSS"] = fmt_r(ds_fss_cnt if ds_fss_cnt is not None else 0)
 
     # --- Non-OS Disk Scans ---
-    non_t = (q5.get("non_os_total") or q1.get("non_os_total") or {}).get("totalCount")
-    non_s = (q5.get("non_os_success") or q1.get("non_os_success") or {}).get("totalCount")
-    non_f = (q5.get("non_os_failed") or q1.get("non_os_failed") or {}).get("totalCount")
-    non_sk = (q5.get("non_os_skipped") or q1.get("non_os_skipped") or {}).get("totalCount")
+    non_t_raw = (q5.get("non_os_total") or q1.get("non_os_total") or {}).get("totalCount")
+    non_succ = (q5.get("non_os_success") or q1.get("non_os_success") or {}).get("totalCount")
+    non_fail = (q5.get("non_os_failed") or q1.get("non_os_failed") or {}).get("totalCount")
+    non_skip = (q5.get("non_os_skipped") or q1.get("non_os_skipped") or {}).get("totalCount")
 
-    out["NON_T"] = fmt_r(non_t if non_t is not None else 0)
-    out["NON_S"] = fmt_r(non_s if non_s is not None else 0)
-    out["NON_F"] = fmt_r(non_f if non_f is not None else 0)
-    out["NON_SK"] = fmt_r(non_sk if non_sk is not None else 0)
-    if non_t and non_t > 0:
-        non_cov = non_s if non_s is not None else max(0, non_t - (non_f or 0) - (non_sk or 0))
+    non_calc_t = (non_succ or 0) + (non_fail or 0) + (non_skip or 0)
+    non_t = non_calc_t if non_calc_t > (non_t_raw or 0) else (non_t_raw or 0)
+
+    out["NON_T"] = fmt_r(non_t)
+    out["NON_S"] = fmt_r(non_skip or 0)  # User directive: *_S represents Skipped
+    out["NON_SK"] = fmt_r(non_skip or 0)
+    out["NON_F"] = fmt_r(non_fail or 0)
+    out["NON_SUCC"] = fmt_r(non_succ or 0)
+    if non_t > 0:
+        non_cov = non_succ if non_succ is not None else max(0, non_t - (non_fail or 0) - (non_skip or 0))
         out["NON_C"] = f"{int(math.floor(non_cov / non_t * 100))}%"
         out["NON_P"] = out["NON_C"]
     else:
@@ -888,17 +892,21 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         out["NON_P"] = "N/A"
 
     # --- Registry Container Image Scans ---
-    rci_t = (q5.get("rci_total") or q1.get("rci_total") or {}).get("totalCount")
-    rci_s = (q5.get("rci_success") or q1.get("rci_success") or {}).get("totalCount")
-    rci_f = (q5.get("rci_failed") or q1.get("rci_failed") or {}).get("totalCount")
-    rci_sk = (q5.get("rci_skipped") or q1.get("rci_skipped") or {}).get("totalCount")
+    rci_t_raw = (q5.get("rci_total") or q1.get("rci_total") or {}).get("totalCount")
+    rci_succ = (q5.get("rci_success") or q1.get("rci_success") or {}).get("totalCount")
+    rci_fail = (q5.get("rci_failed") or q1.get("rci_failed") or {}).get("totalCount")
+    rci_skip = (q5.get("rci_skipped") or q1.get("rci_skipped") or {}).get("totalCount")
 
-    out["RCI_T"] = fmt_r(rci_t if rci_t is not None else 0)
-    out["RCI_S"] = fmt_r(rci_s if rci_s is not None else 0)
-    out["RCI_F"] = fmt_r(rci_f if rci_f is not None else 0)
-    out["RCI_SK"] = fmt_r(rci_sk if rci_sk is not None else 0)
-    if rci_t and rci_t > 0:
-        rci_cov = rci_s if rci_s is not None else max(0, rci_t - (rci_f or 0) - (rci_sk or 0))
+    rci_calc_t = (rci_succ or 0) + (rci_fail or 0) + (rci_skip or 0)
+    rci_t = rci_calc_t if rci_calc_t > (rci_t_raw or 0) else (rci_t_raw or 0)
+
+    out["RCI_T"] = fmt_r(rci_t)
+    out["RCI_S"] = fmt_r(rci_skip or 0)  # User directive: *_S represents Skipped
+    out["RCI_SK"] = fmt_r(rci_skip or 0)
+    out["RCI_F"] = fmt_r(rci_fail or 0)
+    out["RCI_SUCC"] = fmt_r(rci_succ or 0)
+    if rci_t > 0:
+        rci_cov = rci_succ if rci_succ is not None else max(0, rci_t - (rci_fail or 0) - (rci_skip or 0))
         out["RCI_C"] = f"{int(math.floor(rci_cov / rci_t * 100))}%"
         out["RCI_P"] = out["RCI_C"]
     else:
@@ -906,17 +914,21 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         out["RCI_P"] = "N/A"
 
     # --- VM Image Workload Scans ---
-    vmi_t = (q5.get("vmi_total") or q1.get("vmi_total") or {}).get("totalCount")
-    vmi_s = (q5.get("vmi_success") or q1.get("vmi_success") or {}).get("totalCount")
-    vmi_f = (q5.get("vmi_failed") or q1.get("vmi_failed") or {}).get("totalCount")
-    vmi_sk = (q5.get("vmi_skipped") or q1.get("vmi_skipped") or {}).get("totalCount")
+    vmi_t_raw = (q5.get("vmi_total") or q1.get("vmi_total") or {}).get("totalCount")
+    vmi_succ = (q5.get("vmi_success") or q1.get("vmi_success") or {}).get("totalCount")
+    vmi_fail = (q5.get("vmi_failed") or q1.get("vmi_failed") or {}).get("totalCount")
+    vmi_skip = (q5.get("vmi_skipped") or q1.get("vmi_skipped") or {}).get("totalCount")
 
-    out["VMI_T"] = fmt_r(vmi_t if vmi_t is not None else 0)
-    out["VMI_S"] = fmt_r(vmi_s if vmi_s is not None else 0)
-    out["VMI_F"] = fmt_r(vmi_f if vmi_f is not None else 0)
-    out["VMI_SK"] = fmt_r(vmi_sk if vmi_sk is not None else 0)
-    if vmi_t and vmi_t > 0:
-        vmi_cov = vmi_s if vmi_s is not None else max(0, vmi_t - (vmi_f or 0) - (vmi_sk or 0))
+    vmi_calc_t = (vmi_succ or 0) + (vmi_fail or 0) + (vmi_skip or 0)
+    vmi_t = vmi_calc_t if vmi_calc_t > (vmi_t_raw or 0) else (vmi_t_raw or 0)
+
+    out["VMI_T"] = fmt_r(vmi_t)
+    out["VMI_S"] = fmt_r(vmi_skip or 0)  # User directive: *_S represents Skipped
+    out["VMI_SK"] = fmt_r(vmi_skip or 0)
+    out["VMI_F"] = fmt_r(vmi_fail or 0)
+    out["VMI_SUCC"] = fmt_r(vmi_succ or 0)
+    if vmi_t > 0:
+        vmi_cov = vmi_succ if vmi_succ is not None else max(0, vmi_t - (vmi_fail or 0) - (vmi_skip or 0))
         out["VMI_C"] = f"{int(math.floor(vmi_cov / vmi_t * 100))}%"
         out["VMI_P"] = out["VMI_C"]
     else:
