@@ -1,14 +1,14 @@
 ---
 name: wiz-health-assessment
 description: >-
-  Automated skill to conduct comprehensive Wiz Tenant Health Assessments and generate
-  executive-ready presentations in PDF, Google Slides, and CSV intake/export templates. Use when evaluating cloud
-  security posture, scanning fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
+  Automated skill to conduct comprehensive Wiz Tenant Health Assessments and autonomously generate
+  executive-ready PDF presentations and metrics CSV exports. Use when evaluating cloud security posture,
+  scanning fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
 ---
 
-# Wiz Health Assessment & Presentation Deck Builder Skill
+# Wiz Health Assessment & Executive Presentation Deck Builder Skill
 
-You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment Presentations** in **PDF**, **Google Slides**, and **PowerPoint (.pptx)**, alongside structured **Customer Intake & Export CSVs**.
+You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You evaluate tenant health, audit scanning fidelity across cloud environments, and autonomously generate executive-ready **PDF Presentations** and structured **Metrics CSV exports** for the user in a single step.
 
 ---
 
@@ -18,85 +18,63 @@ You are an expert cloud security architect and technical advisor specializing in
 > **NEVER ask the user to paste, type, or share their Wiz Client Secret, API tokens, or Google OAuth secrets into the chat or LLM context.**
 >
 > If credentials are missing or need configuration:
-> 1. Provide the exact step-by-step instructions below on how to obtain them in the Wiz portal.
-> 2. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their local terminal.
-> 3. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
+> 1. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their terminal.
+> 2. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
 
 ---
 
-## 1. How to Obtain Wiz Credentials
+## 1. Autonomous Execution Workflow (What the Agent Does)
 
-### A. How to Find Your Wiz Datacenter
-1. In your browser, navigate to: [https://app.wiz.io/tenant-info/data-center-and-regions](https://app.wiz.io/tenant-info/data-center-and-regions)
-2. Locate the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
+When the user asks to run a Health Assessment, audit their tenant, or generate an executive report:
 
-### B. How to Generate the Wiz Service Account
-1. In the Wiz Portal, open the Service Account creation page: [https://app.wiz.io/settings/service-accounts/new](https://app.wiz.io/settings/service-accounts/new)
-2. Input a recognizable name for the Service Account (e.g., `Health-Assessment-Skill`).
-3. Select `</> Custom Integration (GraphQL API)` from the **Type** dropdown.
-4. Select `Read all entities (read:all)` as the **API scope**.
-5. Click **Add Service Account**.
-6. Take note of the **Client ID** and **Client Secret** (these will be saved in your local `.env` file).
-7. Click **Finish**.
+1. **Execute the Deck Generator**:
+   ```bash
+   python3 scripts/generate_deck.py --format pdf
+   ```
+   *(If a customer name is specified, pass `--customer "<Name>"`).*
 
-### C. How to Configure Your Local `.env` File
-Create or update `.env` in the repository root:
-```bash
-WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
-WIZ_DATACENTER=us60
-WIZ_API_ENDPOINT=https://api.us60.app.wiz.io/graphql
-WIZ_CLIENT_ID=your_client_id_here
-WIZ_CLIENT_SECRET=your_client_secret_here
-```
-*(Or run `python3 scripts/setup_credentials.py` in your terminal to configure interactively).*
+2. **What the Script Does Automatically**:
+   * Authenticates with the Wiz GraphQL API using service account credentials in `.env`.
+   * Queries all 5 core telemetry blocks (Workloads, Security Score, Posture, 7-Pillar Scans, K8s Coverage Ladder, Top Controls, AI Security Findings, Preview Hub, Roadmap Tracker).
+   * Calculates all derived metrics, scan coverage percentages (`NON_C`, `RCI_C`, `VMI_C`, `DS_P`), and industry benchmark gaps.
+   * Generates the executive presentation, highlights enabled Preview Hub features in light green, sweeps unfilled tokens, and exports the **client-ready PDF**.
+   * Exports the complete **660+ metrics CSV** containing all calculated values and category descriptions.
+
+3. **Present the Deliverables in Chat**:
+   * Provide a concise executive summary of their health posture (Workloads, Security Score, Scan Coverage %, Top Risks, AI Findings).
+   * Provide direct clickable markdown links to the two generated files:
+     - `[Executive PDF Presentation](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)`
+     - `[Tenant Metrics CSV](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
 
 ---
 
-## 2. Generating Health Assessment Outputs (PDF, CSV, Slides)
-
-The tool generates both a client-ready **PDF presentation** and a structured **Metrics CSV** (for recordkeeping and customer intake):
+## 2. CLI Command Options & Modes
 
 ```bash
-# 1. Generate PDF Presentation and Populated Metrics CSV (Default)
+# 1. Full Autonomous Assessment (Generates PDF + Metrics CSV - Default)
 python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 
-# 2. Offline Customer Intake Mode: Generate Deck & PDF from a Customer-Filled CSV (No Wiz API access needed)
+# 2. Offline Mode from Customer-Provided CSV (when API access is unavailable)
 python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --customer "Acme Corporation" --format pdf
 
-# 3. Generate Blank Customer Metrics Intake CSV Template
+# 3. Generate Blank Customer Intake Template
 python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
 
-# 4. Generate all formats simultaneously (PDF + Google Slides + Local PPTX + Populated CSV)
+# 4. Generate All Formats (PDF + Google Slides + Local PPTX + Populated CSV)
 python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
 
-# 5. Dry Run (fetches telemetry & validates metrics without writing presentations)
-python3 scripts/generate_deck.py --dry-run --output-json metrics.json
+# 5. Standalone Markdown Audit Report
+python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health_report.md
 ```
-
-### Generated Artifacts & Workflow:
-1. **High-Resolution PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`):
-   * Rendered directly from Google Slides with custom corporate branding, font styles, soft light-green highlight on enabled Preview Hub features, and cleaned layout.
-2. **Populated Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`):
-   * Complete export of all 660+ variables categorized with Category, Variable Token (`{{VAR}}`), Metric Name, Value, Slide Number, and Description.
-3. **Blank Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
-   * An annotated spreadsheet template that TAMs can email to customers who prefer to provide metrics offline or where direct API connectivity is not permitted.
-4. **Offline Deck Builder Engine (`--input-csv`)**:
-   * Takes a customer-returned CSV, normalizes tokens, auto-derives coverage percentages, and produces the complete Google Slides & PDF deck.
 
 ---
 
-## 3. The 7-Pillar Tenant Health Assessment Audit
+## 3. Output Artifacts
 
-When conducting a live technical health audit without generating slides, evaluate the 7 health pillars:
-1. **Cloud Connectors & Operational Health**: Active connectors vs open system health issues.
-2. **Workload Scanning Coverage**: Workload scan success ratio (>= 95% target).
-3. **Data Security Posture (DSPM)**: Bucket & disk scanning coverage and shadow data discovery.
-4. **Cloud Detection & Response (CDR)**: Cloud event ingestion across subscriptions.
-5. **Automation & Alert Hygiene**: Baseline health alerting rules and ticket routing.
-6. **Access Governance & Identity**: User count, SSO enforcement, stale accounts, and admin distribution.
-7. **Actionable Remediation Plan**: Prioritized fixes with IAM/policy snippets.
-
-Run the standalone audit:
-```bash
-python3 scripts/run_health_assessment.py --customer "Acme Corp" -o health_report.md
-```
+* **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`):
+  * 23-slide, high-resolution executive deck ready for C-suite and security leadership presentation.
+  * Contains workload inventory, scanning coverage percentages, Kubernetes maturity ladder, Top Controls by risk count, and preview feature recommendations.
+* **Tenant Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`):
+  * Complete export of all tenant variables categorized by Category, Token (`{{VAR}}`), Metric Name, Value, Slide, and Description.
+* **Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
+  * Annotated template for offline data collection if required.
