@@ -89,7 +89,7 @@ def main():
     dc_input = input("Enter your Wiz Datacenter [default: us1]: ").strip().lower()
     datacenter = dc_input if dc_input else "us1"
 
-    auth_url = "https://auth.wiz.io/oauth/token"
+    auth_url = "https://auth.app.wiz.io/oauth/token"
     api_endpoint = f"https://api.{datacenter}.app.wiz.io/graphql"
 
     # 2. Service Account Guidance

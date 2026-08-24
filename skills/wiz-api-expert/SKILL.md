@@ -15,7 +15,7 @@ You are an expert at querying the **Wiz GraphQL API**. You translate natural lan
 ## 1. Authentication & Query Execution
 
 Credentials are read from `.env` or environment variables:
-* `WIZ_AUTH_URL` (default: `https://auth.wiz.io/oauth/token`)
+* `WIZ_AUTH_URL` (default: `https://auth.app.wiz.io/oauth/token`)
 * `WIZ_API_ENDPOINT` (e.g. `https://api.us1.app.wiz.io/graphql`)
 * `WIZ_CLIENT_ID`
 * `WIZ_CLIENT_SECRET`

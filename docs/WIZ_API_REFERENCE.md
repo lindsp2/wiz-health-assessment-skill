@@ -17,7 +17,13 @@ Wiz uses OAuth 2.0 with JWT access tokens. Tokens have a default lifetime of **2
 
 ```bash
 # Request an Access Token
-curl --silent --request POST   --url "https://auth.wiz.io/oauth/token"   --header "Content-Type: application/x-www-form-urlencoded"   --data "grant_type=client_credentials"   --data "client_id=${WIZ_CLIENT_ID}"   --data "client_secret=${WIZ_CLIENT_SECRET}"   --data "audience=wiz-api"
+curl --silent --request POST \
+  --url "https://auth.app.wiz.io/oauth/token" \
+  --header "Content-Type: application/x-www-form-urlencoded" \
+  --data "grant_type=client_credentials" \
+  --data "client_id=${WIZ_CLIENT_ID}" \
+  --data "client_secret=${WIZ_CLIENT_SECRET}" \
+  --data "audience=wiz-api"
 ```
 
 Response:

@@ -39,8 +39,8 @@ cp .env.example .env
 
 Edit `.env`:
 ```bash
-# Wiz Authentication OAuth Endpoint (default: https://auth.wiz.io/oauth/token)
-WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
+# Wiz Authentication OAuth Endpoint (default: https://auth.app.wiz.io/oauth/token)
+WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
 
 # Wiz Data Center Identifier (e.g. us1, us2, us20, us100, eu1, gov)
 WIZ_DATACENTER=us1

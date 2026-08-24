@@ -42,7 +42,7 @@ You are an expert cloud security architect and technical advisor specializing in
 ### C. How to Configure Your Local `.env` File
 Create or update `.env` in the repository root:
 ```bash
-WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
+WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
 WIZ_DATACENTER=us1
 WIZ_API_ENDPOINT=https://api.us1.app.wiz.io/graphql
 WIZ_CLIENT_ID=your_client_id_here
