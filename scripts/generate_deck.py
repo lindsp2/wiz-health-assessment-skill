@@ -1408,8 +1408,8 @@ def main():
     else:
         print("[*] Authenticating with Wiz API...")
         access_token, api_endpoint = get_wiz_access_token()
-        combined_payload, preview_vars, preview_items, discovered_customer = fetch_live_tenant_telemetry(access_token, api_endpoint)
-        customer_name = args.customer or discovered_customer
+        combined_payload, preview_vars, preview_items, _ = fetch_live_tenant_telemetry(access_token, api_endpoint)
+        customer_name = args.customer or os.environ.get("CUSTOMER_NAME") or "Customer"
 
         print("\n[*] Processing API payload & generating variable replacements...")
         reqs, merged = build_replacement_requests(

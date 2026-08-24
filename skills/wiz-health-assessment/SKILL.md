@@ -34,7 +34,7 @@ Follow this exact step-by-step sequence:
 ### Step 1: Collect Customer Name & Datacenter
 If the customer name or datacenter are not specified in the prompt or already configured in `.env`, ask the user:
 
-1. **What is your customer name?** (e.g. `Acme Corp`, `GBT`, `Tandem Diabetes`)
+1. **What is your customer name?** (e.g. `Acme Corp`, `My Company`)
 2. **What is your Wiz Datacenter?**
    * *Instructions for user:*
      1. Navigate to: `https://app.wiz.io/tenant-info/data-center-and-regions`

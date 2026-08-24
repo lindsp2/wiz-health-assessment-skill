@@ -23,7 +23,7 @@ Execute the following exact sequence:
 
 ### Step 1: Collect Customer Name & Datacenter
 If not already known or specified in the prompt:
-1. **Ask:** *"What is your customer name?"* (e.g. `Acme Corp`, `GBT`, `Tandem Diabetes`)
+1. **Ask:** *"What is your customer name?"* (e.g. `Acme Corp`, `My Company`)
 2. **Ask:** *"What is your Wiz Datacenter?"*
    * *Provide these instructions to the user:*
      1. Navigate to: `https://app.wiz.io/tenant-info/data-center-and-regions`

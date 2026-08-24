@@ -80,8 +80,13 @@ def main():
     print("\n🔒 Security Notice: Credentials entered here are saved ONLY to your")
     print("   local .env file on disk and are never shared or sent to any LLM.\n")
 
-    # 1. Datacenter Guidance
-    print("--- 1. Wiz Datacenter ---")
+    # 1. Customer Name
+    print("--- 1. Customer Name ---")
+    customer_input = input("Enter Customer Name for reports & presentations [default: My Company]: ").strip()
+    customer_name = customer_input if customer_input else "My Company"
+
+    # 2. Datacenter Guidance
+    print("\n--- 2. Wiz Datacenter ---")
     print("To find your Tenant Data Center:")
     print("  Navigate to: https://app.wiz.io/tenant-info/data-center-and-regions")
     print("  Look for the 'Tenant Data Center' result (e.g. us1, us2, us20, us100, eu1, gov).\n")
@@ -92,8 +97,8 @@ def main():
     auth_url = "https://auth.app.wiz.io/oauth/token"
     api_endpoint = f"https://api.{datacenter}.app.wiz.io/graphql"
 
-    # 2. Service Account Guidance
-    print("\n--- 2. Wiz Service Account Credentials ---")
+    # 3. Service Account Guidance
+    print("\n--- 3. Wiz Service Account Credentials ---")
     print("To create your Service Account:")
     print("  1. Access: https://app.wiz.io/settings/service-accounts/new")
     print("  2. Input a recognizable name for the Service Account")
@@ -142,6 +147,9 @@ def main():
 # Generated via scripts/setup_credentials.py
 # ==============================================================================
 
+# Customer
+CUSTOMER_NAME={customer_name}
+
 # Wiz API
 WIZ_AUTH_URL={auth_url}
 WIZ_DATACENTER={datacenter}
@@ -160,7 +168,7 @@ QBR_TEMPLATE_ID={template_id}
     env_path.write_text(env_content, encoding="utf-8")
     print(f"\n[✓] Successfully saved configuration to {env_path}")
     print("\nYou are ready to run your Health Assessment:")
-    print(f"  {python_command()} scripts/generate_deck.py --format pdf --customer \"{tenant_name or 'My Customer'}\"")
+    print(f"  {python_command()} scripts/generate_deck.py --format pdf --customer \"{customer_name}\"")
 
 if __name__ == "__main__":
     main()
