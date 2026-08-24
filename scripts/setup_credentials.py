@@ -119,24 +119,24 @@ def main():
         print("[!] Connection test failed. Please verify your credentials and datacenter.")
         sys.exit(1)
 
-    # 3. Google Slides Credentials (Optional)
-    print("\n--- 3. Google Slides / Drive Setup (Optional) ---")
-    print("Note: PowerPoint (.pptx) generation works with ZERO Google setup.")
-    print("Only configure Google OAuth if you specifically want live Google Slides decks.")
-    setup_google = input("Do you want to configure Google Slides credentials now? [y/N]: ").strip().lower()
+    # Read any existing Google credentials from .env to preserve them if present
+    env_path = REPO_DIR / ".env"
+    existing_vars = {}
+    if env_path.is_file():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    existing_vars[k.strip()] = v.strip().strip("\"'")
 
-    google_client_id = ""
-    google_client_secret = ""
-    google_refresh_token = ""
-    google_folder_id = ""
+    google_client_id = existing_vars.get("GOOGLE_CLIENT_ID", "")
+    google_client_secret = existing_vars.get("GOOGLE_CLIENT_SECRET", "")
+    google_refresh_token = existing_vars.get("GOOGLE_REFRESH_TOKEN", "")
+    google_folder_id = existing_vars.get("GOOGLE_FOLDER_ID", "11OSM169RkTJIbpj7l4lFiwsrU6lgk5FJ")
+    template_id = existing_vars.get("QBR_TEMPLATE_ID", "1ga4sflsBPZS2lsXi6k6fUY1jU5dOrqQ9bQ1JEp3B5GM")
 
-    if setup_google == "y":
-        google_client_id = input("Enter Google Client ID: ").strip()
-        google_client_secret = getpass.getpass("Enter Google Client Secret (hidden): ").strip() or input("Enter Google Client Secret: ").strip()
-        google_refresh_token = getpass.getpass("Enter Google Refresh Token (hidden): ").strip() or input("Enter Google Refresh Token: ").strip()
-        google_folder_id = input("Enter Target Google Drive Folder ID (optional): ").strip()
-
-    # 4. Write .env file
+    # Write .env file
     env_content = f"""# ==============================================================================
 # Wiz Tenant Health Assessment - Local Environment Configuration
 # Generated via scripts/setup_credentials.py
@@ -149,21 +149,18 @@ WIZ_API_ENDPOINT={api_endpoint}
 WIZ_CLIENT_ID={client_id}
 WIZ_CLIENT_SECRET={client_secret}
 
-# Google Slides & Drive (Optional)
+# Presentation Settings
 GOOGLE_CLIENT_ID={google_client_id}
 GOOGLE_CLIENT_SECRET={google_client_secret}
 GOOGLE_REFRESH_TOKEN={google_refresh_token}
 GOOGLE_FOLDER_ID={google_folder_id}
-QBR_TEMPLATE_ID=1ga4sflsBPZS2lsXi6k6fUY1jU5dOrqQ9bQ1JEp3B5GM
+QBR_TEMPLATE_ID={template_id}
 """
 
-    # Write beside the repo rather than into the current directory, so the file
-    # lands where every other script looks for it no matter where this was run.
-    env_path = REPO_DIR / ".env"
     env_path.write_text(env_content, encoding="utf-8")
     print(f"\n[✓] Successfully saved configuration to {env_path}")
-    print("\nYou are ready to generate presentations:")
-    print(f"  {python_command()} scripts/generate_deck.py --format pptx --customer \"{tenant_name or 'My Customer'}\"")
+    print("\nYou are ready to run your Health Assessment:")
+    print(f"  {python_command()} scripts/generate_deck.py --format pdf --customer \"{tenant_name or 'My Customer'}\"")
 
 if __name__ == "__main__":
     main()
