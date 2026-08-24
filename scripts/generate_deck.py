@@ -34,7 +34,6 @@ from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
 from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
-from html_deck_generator import generate_html_presentation, render_html_to_pdf
 
 def get_wiz_access_token():
     env_vars = {}
@@ -1465,30 +1464,18 @@ def main():
         if pptx_res['swept_tokens'] > 0:
             print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 3. Standalone Executive PDF & HTML Generation (Zero Google Setup)
-    pdf_generated = False
-    if selected_format in ("pdf", "both", "all") and not args.dry_run:
-        print(f"\n[*] Generating standalone 16:9 executive presentation...")
-        generate_html_presentation(merged, output_html, customer_name, today_str)
-        print(f"    [✓] HTML Slide Deck: {output_html}")
-        
-        print(f"\n[*] Rendering executive presentation to PDF...")
-        pdf_ok = render_html_to_pdf(output_html, output_pdf)
-        if pdf_ok and os.path.exists(output_pdf):
-            pdf_generated = True
-            print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
-        else:
-            print(f"    [!] Direct PDF conversion requires Chrome/Edge/Chromium on your system.")
-            print(f"        You can open {output_html} in your browser and print to PDF anytime.")
-
-    # 4. Google Slides API (Optional: Only if Google credentials are configured in .env)
+    # 3. Google Slides & Master 23-Slide High-Resolution PDF Generation
     new_deck_id = None
     new_deck_url = None
+    pdf_generated = False
 
-    if selected_format in ("slides", "google_slides", "both", "all") and not args.dry_run:
+    if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
-        if slides_client:
-            print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
+        if not slides_client:
+            print("\n[!] Google Slides credentials not found in .env.")
+            print("    Please ensure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN are configured in .env.")
+        else:
+            print(f"\n[*] Copying master 23-slide template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)
             new_deck_id = copy_res.get("id")
             new_deck_url = copy_res.get("webViewLink") or f"https://docs.google.com/presentation/d/{new_deck_id}/edit"
@@ -1555,6 +1542,13 @@ def main():
             print("\n[*] Sweeping remaining unfilled template tokens...")
             sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
             print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
+
+            # Export authentic master presentation directly to PDF
+            if selected_format in ("pdf", "both", "all"):
+                print(f"\n[*] Exporting master 23-slide Google presentation directly to PDF...")
+                slides_client.export_pdf(new_deck_id, output_pdf)
+                pdf_generated = True
+                print(f"    [✓] Master PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
 
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
