@@ -17,34 +17,87 @@ You are an expert cloud security architect and technical advisor specializing in
 > [!CAUTION]
 > **NEVER ask the user to paste, type, or share their Wiz Client Secret, API tokens, or Google OAuth secrets into the chat or LLM context.**
 >
-> If credentials are missing or need configuration:
-> 1. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their terminal.
-> 2. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
+> When configuring credentials:
+> 1. Write the Customer Name and Datacenter to `.env`.
+> 2. For Client ID & Secret, guide the user to either edit `.env` directly on disk or run `setup_credentials.py` in a separate terminal window outside the AI agent.
 
 ---
 
-## 1. Autonomous Execution Workflow (What the Agent Does)
+## 1. Conversational Agent Workflow
 
-When the user asks to run a Health Assessment, audit their tenant, or generate an executive report:
+When the user says:
+> **"Run a health assessment for my Wiz tenant and generate my files"** (or similar)
 
-1. **Execute the Deck Generator**:
-   ```bash
-   python3 scripts/generate_deck.py --format pdf
-   ```
-   *(If a customer name is specified, pass `--customer "<Name>"`).*
+Follow this exact step-by-step sequence:
 
-2. **What the Script Does Automatically**:
-   * Authenticates with the Wiz GraphQL API using service account credentials in `.env`.
-   * Queries all 5 core telemetry blocks (Workloads, Security Score, Posture, 7-Pillar Scans, K8s Coverage Ladder, Top Controls, AI Security Findings, Preview Hub, Roadmap Tracker).
-   * Calculates all derived metrics, scan coverage percentages (`NON_C`, `RCI_C`, `VMI_C`, `DS_P`), and industry benchmark gaps.
-   * Generates the executive presentation, highlights enabled Preview Hub features in light green, sweeps unfilled tokens, and exports the **client-ready PDF**.
-   * Exports the complete **660+ metrics CSV** containing all calculated values and category descriptions.
+### Step 1: Collect Customer Name & Datacenter
+If the customer name or datacenter are not specified in the prompt or already configured in `.env`, ask the user:
 
-3. **Present the Deliverables in Chat**:
-   * Provide a concise executive summary of their health posture (Workloads, Security Score, Scan Coverage %, Top Risks, AI Findings).
-   * Provide direct clickable markdown links to the two generated files:
-     - `[Executive PDF Presentation](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)`
-     - `[Tenant Metrics CSV](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
+1. **What is your customer name?** (e.g. `Acme Corp`, `GBT`, `Tandem Diabetes`)
+2. **What is your Wiz Datacenter?**
+   * *Instructions for user:*
+     1. Navigate to: `https://app.wiz.io/tenant-info/data-center-and-regions`
+     2. Look for the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
+
+---
+
+### Step 2: Update `.env` with Datacenter & Endpoint
+Update or create the `.env` file in the `wiz-health-assessment-skill/` directory with the provided values:
+```bash
+WIZ_DATACENTER=<datacenter>
+WIZ_API_ENDPOINT=https://api.<datacenter>.app.wiz.io/graphql
+WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
+```
+
+---
+
+### Step 3: Check for Service Account Credentials in `.env`
+Inspect the local `.env` file for non-empty `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`:
+
+#### ✅ Case A: Credentials are present in `.env`
+Proceed immediately to run the assessment and generate the files:
+```bash
+python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
+```
+*(Use `python` or `python3` depending on the environment).*
+
+#### ⚠️ Case B: Credentials are NOT present or empty
+Present the user with the following two options:
+
+1. **Option 1: Update the `.env` file manually**
+   * Open `wiz-health-assessment-skill/.env` in an editor.
+   * Add your `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`.
+   * *How to create a Service Account in Wiz:*
+     1. Access: `https://app.wiz.io/settings/service-accounts/new`
+     2. Name your Service Account
+     3. Select **`</> Custom Integration (GraphQL API)`**
+     4. Select **`Read all entities (read:all)`** as the API scope
+     5. Click **Add Service Account**, copy the **Client ID** and **Client Secret**, and click **Finish**.
+
+2. **Option 2: Run the secure setup script in a separate terminal window**
+   * Open a **separate terminal window** (one not connected to this AI agent session).
+   * Run the interactive setup tool:
+     ```bash
+     python3 wiz-health-assessment-skill/scripts/setup_credentials.py
+     ```
+     *(Note: You may need to use `python` or `python3` depending on your OS configuration).*
+   * This script will prompt for your credentials, test live connectivity to the Wiz API, and write the `.env` file securely on disk.
+
+*Once completed, reply in chat to proceed with file generation.*
+
+---
+
+## 2. Generating & Delivering the Files
+
+Once credentials are confirmed, execute:
+```bash
+python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
+```
+
+### Deliverables Output:
+Provide a concise executive summary of the tenant posture and clickable links to:
+* 📄 **Executive PDF Presentation**: `[Wiz_Health_Assessment_<Customer>_<Date>.pdf](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)`
+* 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
 
 ---
 

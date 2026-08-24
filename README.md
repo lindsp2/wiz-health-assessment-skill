@@ -58,42 +58,36 @@ cd wiz-health-assessment-skill
 
 ---
 
-### 3. Generate the Executive Presentation Deck
+### 3. Using with AI Assistants (Claude Code, Cursor, Jetski)
 
-* **PowerPoint (.pptx) - Local file, zero Google setup needed (Default):**
-  ```bash
-  python scripts/generate_deck.py --format pptx --customer "Acme Corporation"
-  ```
-  *Output:* `output/Wiz_Health_Assessment_Acme_Corporation_YYYY-MM-DD.pptx`
+Once cloned, open your AI assistant in the repository folder and simply tell it:
+> **"Run a health assessment for my Wiz tenant and generate my files"**
 
-* **Google Slides - Live deck in Google Drive:**
-  ```bash
-  python scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<GOOGLE_DRIVE_FOLDER_ID>"
-  ```
-
-* **Both Formats Simultaneously:**
-  ```bash
-  python scripts/generate_deck.py --format both --customer "Acme Corporation"
-  ```
-
-* **Interactive Mode (prompts for format choice):**
-  ```bash
-  python scripts/generate_deck.py --customer "Acme Corporation"
-  ```
-
-* **Dry Run (validates metrics without writing presentation files):**
-  ```bash
-  python scripts/generate_deck.py --dry-run --output-json metrics.json
-  ```
+The AI assistant will:
+1. Ask for your **Customer Name** and **Wiz Datacenter**.
+2. Guide you to securely configure your Service Account credentials (via `.env` or the isolated `setup_credentials.py` wizard).
+3. Autonomously execute the assessment and deliver:
+   * 📄 **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`) — 23-slide board-ready presentation.
+   * 📊 **Tenant Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`) — 660+ metric export.
 
 ---
 
-### 4. Using with AI Assistants (Claude Code, Cursor, Jetski)
+### 4. Direct CLI Commands
 
-Once cloned or installed, simply open your AI assistant in the repository folder and ask:
-* *"Run a health assessment for Acme Corp and generate a PowerPoint deck."*
-* *"Build an executive review presentation for my tenant."*
-* *"Query open critical issues in my Wiz tenant."*
+* **Generate PDF Presentation & Metrics CSV (Default):**
+  ```bash
+  python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
+  ```
+
+* **Generate All Formats (PDF + Google Slides + Local PPTX + CSV):**
+  ```bash
+  python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
+  ```
+
+* **Offline Mode from Customer Intake CSV:**
+  ```bash
+  python3 scripts/generate_deck.py --input-csv path/to/metrics.csv --customer "Acme Corporation"
+  ```
 
 ---
 
