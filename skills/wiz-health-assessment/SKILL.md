@@ -31,58 +31,41 @@ When the user says:
 
 Follow this exact step-by-step sequence:
 
-### Step 1: Collect Customer Name & Datacenter
-If the customer name or datacenter are not specified in the prompt or already configured in `.env`, ask the user:
+### Step 1: Check `.env` for Configuration
+Inspect `wiz-health-assessment-skill/.env` in the repository root.
 
-1. **What is your customer name?** (e.g. `Acme Corp`, `My Company`)
-2. **What is your Wiz Datacenter?**
-   * *Instructions for user:*
-     1. Navigate to: `https://app.wiz.io/tenant-info/data-center-and-regions`
-     2. Look for the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
-
----
-
-### Step 2: Update `.env` with Datacenter & Endpoint
-Update or create the `.env` file in the `wiz-health-assessment-skill/` directory with the provided values:
+#### ✅ Case A: `.env` is configured with `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`
+Proceed immediately to run the assessment (it automatically loads `CUSTOMER_NAME`, `WIZ_DATACENTER`, `WIZ_CLIENT_ID`, and `WIZ_CLIENT_SECRET` from `.env`):
 ```bash
-WIZ_DATACENTER=<datacenter>
-WIZ_API_ENDPOINT=https://api.<datacenter>.app.wiz.io/graphql
-WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
-```
-
----
-
-### Step 3: Check for Service Account Credentials in `.env`
-Inspect the local `.env` file for non-empty `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`:
-
-#### ✅ Case A: Credentials are present in `.env`
-Proceed immediately to run the assessment and generate the files:
-```bash
-python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
+python3 scripts/generate_deck.py --format pdf
 ```
 *(Use `python` or `python3` depending on the environment).*
 
-#### ⚠️ Case B: Credentials are NOT present or empty
-Present the user with the following two options:
+#### ⚠️ Case B: `.env` is NOT configured or missing Client ID / Secret
+Do not prompt the user for secrets in chat. Present the user with these two options to configure their environment:
 
-1. **Option 1: Update the `.env` file manually**
-   * Open `wiz-health-assessment-skill/.env` in an editor.
-   * Add your `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`.
-   * *How to create a Service Account in Wiz:*
-     1. Access: `https://app.wiz.io/settings/service-accounts/new`
-     2. Name your Service Account
-     3. Select **`</> Custom Integration (GraphQL API)`**
-     4. Select **`Read all entities (read:all)`** as the API scope
-     5. Click **Add Service Account**, copy the **Client ID** and **Client Secret**, and click **Finish**.
+1. **Option 1: Update `.env` manually**
+   * Create or edit `wiz-health-assessment-skill/.env` on disk:
+     ```bash
+     CUSTOMER_NAME=My Company
+     WIZ_DATACENTER=us1
+     WIZ_API_ENDPOINT=https://api.us1.app.wiz.io/graphql
+     WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
+     WIZ_CLIENT_ID=your_client_id_here
+     WIZ_CLIENT_SECRET=your_client_secret_here
+     ```
+   * *How to get these values:*
+     * **Datacenter**: Navigate to `https://app.wiz.io/tenant-info/data-center-and-regions` and copy the 'Tenant Data Center' value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
+     * **Service Account**: Access `https://app.wiz.io/settings/service-accounts/new`, select `</> Custom Integration (GraphQL API)`, select `Read all entities (read:all)` scope, click **Add Service Account**, and copy the Client ID and Client Secret.
 
-2. **Option 2: Run the secure setup script in a separate terminal window**
+2. **Option 2: Run the interactive setup script in a separate terminal**
    * Open a **separate terminal window** (one not connected to this AI agent session).
-   * Run the interactive setup tool:
+   * Run the interactive setup wizard:
      ```bash
      python3 wiz-health-assessment-skill/scripts/setup_credentials.py
      ```
      *(Note: You may need to use `python` or `python3` depending on your OS configuration).*
-   * This script will prompt for your credentials, test live connectivity to the Wiz API, and write the `.env` file securely on disk.
+   * This script will prompt for your Customer Name, Datacenter, Client ID, and Client Secret, test live connectivity to the Wiz API, and write the `.env` file securely on disk.
 
 *Once completed, reply in chat to proceed with file generation.*
 
