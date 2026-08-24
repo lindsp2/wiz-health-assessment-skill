@@ -1,0 +1,120 @@
+Category,Variable,Metric Name,Value,Slide,Description
+General,{{CUSTOMER}},Customer Name,,"1, 14",Customer organization or tenant name
+General,{{TAM_NAME}},Technical Account Manager,,1,Assigned Wiz TAM / Architect
+General,{{DATE}},Assessment Date,,"1, 14",Date of Health Assessment (YYYY-MM-DD)
+Cloud Architecture,{{C_AWS}},AWS Accounts Count,,3,Total connected AWS accounts
+Cloud Architecture,{{C_AZ}},Azure Subscriptions Count,,3,Total connected Azure subscriptions
+Cloud Architecture,{{C_GCP}},GCP Projects Count,,3,Total connected GCP projects
+Cloud Architecture,{{C_OTH}},Other Cloud Accounts Count,,3,"OCI, Alibaba, etc."
+Cloud Architecture,{{C_OTH_NAMES}},Other Cloud Provider Names,,3,Names of other cloud providers
+Cloud Architecture,{{CON_TOT}},Total Connected Connectors,,3,Total connectors across all types
+AI Footprint,{{AI_AGENTS_COUNT}},AI Agents Discovered,,3,Active AI Agent entities
+AI Footprint,{{AI_MODELS_COUNT}},AI Models Discovered,,3,Active AI Model entities
+AI Footprint,{{AI_GUARDRAILS_COUNT}},AI Guardrails Discovered,,3,Active AI Guardrail entities
+AI Footprint,{{AI_MCP_SERVERS_COUNT}},MCP Servers Discovered,,3,Model Context Protocol servers
+AI Footprint,{{AI_PIPELINES_COUNT}},AI Pipelines Discovered,,3,Active AI Pipelines
+AI Footprint,{{AI_DATASETS_COUNT}},AI Datasets Discovered,,3,AI Datastores / Training sets
+AI Footprint,{{AI_TECHNOLOGIES_COUNT}},AI Technologies Count,,3,"AI libraries & frameworks (PyTorch, TensorFlow, etc.)"
+AI Footprint,{{AI_CA_COUNT}},AI Coding Agents (IDEs),,3,Developer IDEs with AI assistants
+AI Footprint,{{AI_CODE_REPOS_COUNT}},AI Code Repositories,,3,VCS repositories using AI technologies
+AI Footprint,{{AI_WORKLOADS_COUNT}},AI Running Workloads,,3,Workloads executing AI models or pipelines
+Workload Inventory,{{CW_TOT}},Total Cloud Workloads,,4,Total active compute workloads
+Workload Inventory,{{CW_VM}},Virtual Machines Count,,4,Total VMs in inventory
+Workload Inventory,{{CW_SLS}},Serverless Functions Count,,4,"Lambda, Azure Functions, Cloud Run"
+Workload Inventory,{{CW_CR}},Container Registries Count,,4,"ECR, ACR, GCR/Artifact Registry"
+Workload Inventory,{{CW_CO}},Container Repositories Count,,4,Total container repositories
+Connectors & Agents,{{CON_WOS}},Wiz Sensor Workloads,,4,Workloads with Wiz Runtime Sensor installed
+Connectors & Agents,{{CON_K8S}},Kubernetes Connectors Count,,4,Installed K8s connectors
+Connectors & Agents,{{CON_CC}},Cloud Connectors Count,,4,Active cloud integration connectors
+Connectors & Agents,{{CON_AC}},Admission Controllers Count,,4,K8s admission controllers deployed
+Connectors & Agents,{{CON_VCS}},VCS Connectors Count,,4,"GitHub, GitLab, Bitbucket connectors"
+Connectors & Agents,{{CON_CICD}},CI/CD Connectors Count,,4,Pipelines & build server integrations
+System Health,{{SHI_C}},Open Critical SHIs,,5,Open Critical System Health Issues
+System Health,{{SHI_H}},Open High SHIs,,5,Open High System Health Issues
+System Health,{{SHI_R_C}},Resolved Critical SHIs (30d),,5,Resolved Critical SHIs in past 30 days
+System Health,{{SHI_R_H}},Resolved High SHIs (30d),,5,Resolved High SHIs in past 30 days
+System Health Breakdown,{{SHI_O}},SHI - Outposts & Outpost Clusters,,5,Open Crit+High SHIs on Outposts
+System Health Breakdown,{{SHI_CC}},SHI - Cloud Connectors,,5,Open Crit+High SHIs on Cloud Connectors
+System Health Breakdown,{{SHI_I}},SHI - Integrations & Service Accounts,,5,Open Crit+High SHIs on Integrations
+System Health Breakdown,{{SHI_RC}},SHI - Registry Connectors,,5,Open Crit+High SHIs on Container Registries
+System Health Breakdown,{{SHI_KC}},SHI - Kubernetes Connectors,,5,Open Crit+High SHIs on K8s Connectors
+System Health Breakdown,{{SHI_VCS}},SHI - VCS & CI/CD Connectors,,5,Open Crit+High SHIs on Version Control
+System Health Breakdown,{{SHI_B}},SHI - Brokers & CLI,,5,Open Crit+High SHIs on Brokers / CLI
+Non-OS Disk Scans,{{NON_T}},Non-OS Disk Total Scans,,5,Total Non-OS disk scans evaluated
+Non-OS Disk Scans,{{NON_F}},Non-OS Disk Failed Scans,,5,Failed Non-OS disk scans
+Non-OS Disk Scans,{{NON_S}},Non-OS Disk Skipped Scans,,5,Skipped Non-OS disk scans
+Non-OS Disk Scans,{{NON_C}},Non-OS Disk Scan Coverage %,,5,Coverage percentage (e.g. 35%)
+Container Image Scans,{{RCI_T}},Container Image Total Scans,,5,Total registry container image workload scans
+Container Image Scans,{{RCI_F}},Container Image Failed Scans,,5,Failed container image scans
+Container Image Scans,{{RCI_S}},Container Image Skipped Scans,,5,Skipped container image scans
+Container Image Scans,{{RCI_C}},Container Image Scan Coverage %,,5,Coverage percentage (e.g. 16%)
+VM Image Scans,{{VMI_T}},VM Image Total Scans,,5,Total VM image workload scans
+VM Image Scans,{{VMI_F}},VM Image Failed Scans,,5,Failed VM image scans
+VM Image Scans,{{VMI_S}},VM Image Skipped Scans,,5,Skipped VM image scans
+VM Image Scans,{{VMI_C}},VM Image Scan Coverage %,,5,Coverage percentage (e.g. 0%)
+Data Security (DSPM) Scans,{{DS_T}},DSPM Total Scans,,5,Total DSPM data security scans
+Data Security (DSPM) Scans,{{DS_F}},DSPM Failed Scans,,5,Failed DSPM scans
+Data Security (DSPM) Scans,{{DS_SK}},DSPM Skipped Scans,,5,Skipped DSPM scans
+Data Security (DSPM) Scans,{{DS_P}},DSPM Scan Coverage %,,5,DSPM coverage percentage (e.g. 81%)
+DSPM Breakdown,{{DS_B}},Storage Buckets Scanned,,5,"S3, GCS, Azure Blob buckets"
+DSPM Breakdown,{{DS_PD}},PaaS Databases Scanned,,5,"RDS, Cloud SQL, CosmosDB"
+DSPM Breakdown,{{DS_DW}},Data Warehouses Scanned,,5,"Snowflake, BigQuery, Redshift"
+DSPM Breakdown,{{DS_VD}},Virtual Drives Scanned,,5,"EBS, Google Persistent Disks"
+DSPM Breakdown,{{DS_AI}},AI Datastores Scanned,,5,AI datasets / Knowledge bases
+DSPM Breakdown,{{DS_FSS}},File System Services Scanned,,5,"EFS, Azure Files, NetApp"
+Kubernetes,{{KC_C_T}},Total K8s Clusters,,6,Total managed & self-hosted K8s clusters
+Kubernetes,{{KC_C_C}},Total K8s Containers,,6,Total running container instances
+Kubernetes,{{KC_WC}},Clusters with Connector Deployed,,6,Clusters with active Wiz K8s connector
+Kubernetes,{{KC_WA}},Clusters with Audit Log Ingestion,,6,Clusters collecting K8s audit logs
+Kubernetes,{{KC_WS}},Clusters with Runtime Sensor,,6,Clusters with Wiz Runtime Sensor daemonset
+Kubernetes,{{KC_AC}},Clusters with Admission Controller,,6,Clusters with admission controller webhook
+Kubernetes Gaps,{{KG_NC}},Clusters Missing Connector,,6,Unmanaged / unmonitored clusters
+Kubernetes Gaps,{{KG_NA}},Clusters Missing Audit Log Ingestion,,6,Missing audit log ingestion
+Kubernetes Gaps,{{KG_NS}},Clusters Missing Runtime Sensor,,6,Missing runtime threat detection
+Kubernetes Gaps,{{KG_AC}},Clusters Missing Admission Controller,,6,Missing admission control enforcement
+Top Controls,{{CI_CONTROL_1}},Top Critical Control 1 Name,,11,Control with most critical issues
+Top Controls,{{CI_CBC_1}},Top Critical Control 1 Count,,11,Issue count for top critical control 1
+Top Controls,{{CI_CONTROL_2}},Top Critical Control 2 Name,,11,Control with second most critical issues
+Top Controls,{{CI_CBC_2}},Top Critical Control 2 Count,,11,Issue count for top critical control 2
+Top Controls,{{CI_CONTROL_3}},Top Critical Control 3 Name,,11,Control with third most critical issues
+Top Controls,{{CI_CBC_3}},Top Critical Control 3 Count,,11,Issue count for top critical control 3
+Top Controls,{{HI_CONTROL_1}},Top High Control 1 Name,,11,Control with most high issues
+Top Controls,{{HI_CBC_1}},Top High Control 1 Count,,11,Issue count for top high control 1
+Top Controls,{{HI_CONTROL_2}},Top High Control 2 Name,,11,Control with second most high issues
+Top Controls,{{HI_CBC_2}},Top High Control 2 Count,,11,Issue count for top high control 2
+Top Controls,{{HI_CONTROL_3}},Top High Control 3 Name,,11,Control with third most high issues
+Top Controls,{{HI_CBC_3}},Top High Control 3 Count,,11,Issue count for top high control 3
+Security Posture,{{SS}},Current Security Score,,12,Wiz Security Score (0-100%)
+Security Posture,{{s1d}},90-Day Security Score Trend,,12,Score change (+/- %)
+Security Posture,{{SP}},Industry Benchmark Score,,12,Peer benchmark security score (%)
+Security Posture,{{SG}},Security Score Gap,,12,Gap between current score and benchmark (%)
+Security Posture,{{SS_I}},Industry Benchmark Name,,12,"e.g. Technology, Financial Services, Healthcare"
+Security Posture,{{OC}},Open Critical Issues,,12,Total active critical severity issues
+Security Posture,{{RC}},Resolved Critical Issues (90d),,12,Resolved critical issues in past 90 days
+Security Posture,{{OH}},Open High Issues,,12,Total active high severity issues
+Security Posture,{{RH}},Resolved High Issues (90d),,12,Resolved high issues in past 90 days
+Security Posture,{{RJ}},Ignored Issues Count,,12,Total issues in rejected / ignored status
+Threats & Runtime,{{OT}},Open Threats Count,,12,Open runtime threat detections
+Threats & Runtime,{{RT}},Resolved Threats Count (90d),,12,Resolved threats in past 90 days
+Threats & Runtime,{{MTTR_O}},Mean Time to Remediate (MTTR),,12,Average MTTR in days for criticals/threats
+Threats & Runtime,{{AVG_AGEC}},Critical Issues Average Age,,12,Average age of open critical issues (days)
+Threats & Runtime,{{AVG_AGEH}},High Issues Average Age,,12,Average age of open high issues (days)
+AI Security Findings,{{AI_SF}},AI Security Findings Count,,12,Active AI security posture findings
+AI Security Findings,{{AI_MF}},AI Misconfiguration Findings Count,,12,Configuration findings for AI framework (wct-id-1998)
+AI Security Findings,{{AI_IF}},AI Inventory Findings Count,,12,Inventory findings for AI models & MCP servers
+Licenses,{{L_CW}},Cloud Workload Protection License,,14,Active / Billable unit count
+Licenses,{{L_CO}},Wiz Code License,,14,Active / Inactive
+Licenses,{{L_DE}},Wiz Defend License,,14,Active / Inactive
+Licenses,{{L_CL_PCT}},Container Lifecycle Coverage %,,14,Container lifecycle scanning coverage
+Potential Integrations,{{PI_T1_N}},Top Integration 1 Name,,15,Most active cloud service technology
+Potential Integrations,{{PI_T1_D}},Top Integration 1 Timeline Date,,15,Last activity date (YYYY-MM-DD)
+Potential Integrations,{{PI_T1_NT}},Top Integration 1 Total Instances,,15,Total discovered service accounts
+Potential Integrations,{{PI_T1_NS}},Top Integration 1 External Owners,,15,Accounts with external owners
+Potential Integrations,{{PI_T2_N}},Top Integration 2 Name,,15,Second most active technology
+Potential Integrations,{{PI_T2_D}},Top Integration 2 Timeline Date,,15,Last activity date
+Potential Integrations,{{PI_T2_NT}},Top Integration 2 Total Instances,,15,Total discovered instances
+Potential Integrations,{{PI_T2_NS}},Top Integration 2 External Owners,,15,Accounts with external owners
+Potential Integrations,{{PI_T3_N}},Top Integration 3 Name,,15,Third most active technology
+Potential Integrations,{{PI_T3_D}},Top Integration 3 Timeline Date,,15,Last activity date
+Potential Integrations,{{PI_T3_NT}},Top Integration 3 Total Instances,,15,Total discovered instances
+Potential Integrations,{{PI_T3_NS}},Top Integration 3 External Owners,,15,Accounts with external owners

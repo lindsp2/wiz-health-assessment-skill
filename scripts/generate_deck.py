@@ -31,6 +31,7 @@ from api_delta_processor import build_replacement_requests, process_raw_api_delt
 from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
+from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
 
 def get_wiz_access_token():
     env_vars = {}
@@ -151,28 +152,8 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
                 print(f"    [Error: {e}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
                 continue
-            print(f"    [!] Query failed after {retries} attempts ({last_err}); continuing with empty result.")
-            return {"data": {}}
-
-def main():
-    parser = argparse.ArgumentParser(description="Wiz Tenant Health Assessment & Executive Presentation Deck Builder")
-    parser.add_argument("--customer", "-c", help="Customer name for title slides (default: auto-detected from tenant name)")
-    parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
-    parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
-    parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
-    parser.add_argument("--format", choices=["pptx", "slides", "both"], help="Presentation output format: 'pptx' (local PowerPoint), 'slides' (Google Slides), or 'both'")
-    parser.add_argument("--output-pptx", help="Path to output local PowerPoint file (default: output/Wiz_Health_Assessment_<Customer>.pptx)")
-    parser.add_argument("--pptx-template", help="Path to PowerPoint master template (default: templates/wiz_health_assessment_template.pptx)")
-    parser.add_argument("--google-slides", action="store_true", help="Alias for --format slides")
-    parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry and calculate metrics without modifying files")
-    parser.add_argument("--output-json", "-o", help="Save extracted metrics dictionary to a JSON file")
-    args = parser.parse_args()
-
-    if args.env_file:
-        os.environ["ENV_FILE"] = args.env_file
-    print("[*] Authenticating with Wiz API...")
-    access_token, api_endpoint = get_wiz_access_token()
-
+def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
+    """Executes all Wiz API GraphQL queries (Q1-Q5, K8s, Controls, Preview Hub, Roadmap) and compiles telemetry payload."""
     now = datetime.datetime.now(datetime.timezone.utc)
     end_str = now.strftime("%Y-%m-%dT00:00:00.000Z")
     start_30d = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
@@ -1351,6 +1332,7 @@ def main():
     preview_vars["ROADMAP_TRACKER_TOTAL"] = str(roadmap_total)
     print(f"    Compiled ROADMAP_TRACKER with top {len(roadmap_nodes[:20])} of {roadmap_total} tracked roadmap items.")
 
+    # 2. Extract and compile telemetry
     all_responses = [res1, res2, res3, res4, res4c, res5, res_k8s_cov, res_controls]
     if res_lic:
         all_responses.append(res_lic)
@@ -1358,51 +1340,105 @@ def main():
         all_responses.append(res_lic_usage)
     combined_payload = "\n---\n".join([json.dumps(r) for r in all_responses])
 
+    tenant_info = ((res3.get("data", {}).get("viewerV2", {}) or {}).get("tenant", {}) or {})
+    discovered_customer = tenant_info.get("name") or "Cloud Security Customer"
+
+    return combined_payload, preview_vars, preview_items, discovered_customer
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Wiz Tenant Health Assessment & Executive Presentation Deck Builder")
+    parser.add_argument("--customer", "-c", help="Customer name for title slides (default: auto-detected from tenant name or CSV)")
+    parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
+    parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
+    parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
+    parser.add_argument("--format", choices=["pdf", "slides", "pptx", "both", "all"], default="pdf", help="Presentation output format: 'pdf' (export Google Slides to PDF, Default), 'slides' (Google Slides), 'pptx' (local PowerPoint), 'both' (PDF + Slides), or 'all' (PDF + Slides + PPTX)")
+    parser.add_argument("--input-csv", "-i", help="Path to customer-filled metrics CSV file (generates presentation directly from CSV without needing Wiz API access)")
+    parser.add_argument("--output-csv", help="Path to export populated metrics CSV file (default: output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)")
+    parser.add_argument("--output-pdf", help="Path to output PDF presentation file (default: output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)")
+    parser.add_argument("--output-pptx", help="Path to output local PowerPoint file (default: output/Wiz_Health_Assessment_<Customer>_<Date>.pptx)")
+    parser.add_argument("--generate-csv-template", help="Generate a blank customer intake CSV template at the specified path and exit")
+    parser.add_argument("--pptx-template", help="Path to PowerPoint master template (default: templates/wiz_health_assessment_template.pptx)")
+    parser.add_argument("--google-slides", action="store_true", help="Alias for --format slides")
+    parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry and calculate metrics without modifying files")
+    parser.add_argument("--output-json", "-o", help="Save extracted metrics dictionary to a JSON file")
+    args = parser.parse_args()
+
+    # Handle blank template generation
+    if args.generate_csv_template:
+        tmpl_path = generate_intake_template_csv(args.generate_csv_template)
+        print(f"\n[✓] Blank customer metrics intake template generated: {tmpl_path}\n")
+        return None, None, {}
+
+    if args.env_file:
+        os.environ["ENV_FILE"] = args.env_file
+
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
-    customer_name = args.customer
-    if not customer_name:
-        tenant_info = ((res3.get("data", {}).get("viewerV2", {}) or {}).get("tenant", {}) or {})
-        customer_name = tenant_info.get("name") or "Cloud Security Customer"
     target_folder_id = args.folder_id or os.environ.get("GOOGLE_FOLDER_ID") or "11OSM169RkTJIbpj7l4lFiwsrU6lgk5FJ"
     template_id = args.template_id or os.environ.get("QBR_TEMPLATE_ID") or QBR_TEMPLATE_ID
 
-    print("\n[*] Processing API payload & generating variable replacements...")
-    reqs, merged = build_replacement_requests(
-        customer_name=customer_name,
-        today_str=today_str,
-        tam_metrics={},
-        api_delta_text=combined_payload,
-        preview_vars=preview_vars
-    )
-    print(f"    Generated {len(reqs)} replaceAllText requests across {len(merged)} variables.")
+    # Branch: CSV Input Mode (Offline Customer Data)
+    if args.input_csv:
+        print(f"\n[*] Loading customer metrics from CSV: {args.input_csv}...")
+        merged = load_metrics_from_csv(args.input_csv)
+        customer_name = args.customer or merged.get("CUSTOMER", {}).get("value") or "Customer"
+        preview_items = []
+        preview_vars = {}
+        
+        reqs = []
+        for k, v_dict in merged.items():
+            val = v_dict.get("value", "")
+            reqs.append({
+                "replaceAllText": {
+                    "containsText": {"text": f"{{{{{k}}}}}", "matchCase": True},
+                    "replaceText": val,
+                }
+            })
+            reqs.append({
+                "replaceAllText": {
+                    "containsText": {"text": f"{{{{{k.lower()}}}}}", "matchCase": True},
+                    "replaceText": val,
+                }
+            })
+        print(f"    Loaded {len(merged)} variables from CSV; generated {len(reqs)} replacement requests.")
+    else:
+        print("[*] Authenticating with Wiz API...")
+        access_token, api_endpoint = get_wiz_access_token()
+        combined_payload, preview_vars, preview_items, discovered_customer = fetch_live_tenant_telemetry(access_token, api_endpoint)
+        customer_name = args.customer or discovered_customer
+
+        print("\n[*] Processing API payload & generating variable replacements...")
+        reqs, merged = build_replacement_requests(
+            customer_name=customer_name,
+            today_str=today_str,
+            tam_metrics={},
+            api_delta_text=combined_payload,
+            preview_vars=preview_vars
+        )
+        print(f"    Generated {len(reqs)} replaceAllText requests across {len(merged)} variables.")
 
     # Determine output format
-    selected_format = args.format
-    if not selected_format:
-        if args.google_slides:
-            selected_format = "slides"
-        elif not args.dry_run and sys.stdin.isatty():
-            print("\nSelect Presentation Output Format:")
-            print("  [1] PowerPoint Presentation (.pptx) - Local file, no Google account needed (Default)")
-            print("  [2] Google Slides Presentation - Creates live deck in Google Drive")
-            print("  [3] Both (PowerPoint + Google Slides)")
-            choice = input("Choice [1/2/3, default: 1]: ").strip()
-            if choice == "2":
-                selected_format = "slides"
-            elif choice == "3":
-                selected_format = "both"
-            else:
-                selected_format = "pptx"
-        else:
-            selected_format = "pptx"
+    selected_format = args.format or "pdf"
+    if args.google_slides:
+        selected_format = "slides"
 
-    # 1. Local PowerPoint (.pptx) Generation
-    template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
     customer_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', customer_name)
+    output_pdf = args.output_pdf or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pdf")
     output_pptx = args.output_pptx or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pptx")
+    output_csv = args.output_csv or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}_metrics.csv")
 
-    if selected_format in ("pptx", "both") and not args.dry_run:
+    # 1. Export Populated Metrics CSV & Blank Intake Template
+    if not args.dry_run:
+        csv_file = export_metrics_to_csv(merged, output_csv, customer_name)
+        print(f"\n[*] Metrics CSV generated: {csv_file}")
+        default_tmpl = SCRIPT_DIR.parent / "templates" / "wiz_customer_metrics_intake_template.csv"
+        if not default_tmpl.exists():
+            generate_intake_template_csv(str(default_tmpl))
+
+    # 2. Local PowerPoint (.pptx) Generation
+    template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
+    if selected_format in ("pptx", "all") and not args.dry_run:
         if not os.path.exists(template_pptx):
             print(f"\n[!] PowerPoint template not found at: {template_pptx}")
         else:
@@ -1416,15 +1452,16 @@ def main():
             )
             print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
             print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
-            print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
+            if pptx_res.get('highlighted_count'):
+                print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
             if pptx_res['swept_tokens'] > 0:
                 print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 2. Google Slides Generation
+    # 3. Google Slides & PDF Generation
     new_deck_id = None
     new_deck_url = None
 
-    if selected_format in ("slides", "both") and not args.dry_run:
+    if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
         if not slides_client:
             print("\n[!] Google Slides credentials not found in .env.")
@@ -1440,54 +1477,55 @@ def main():
             print(f"\n[*] Applying {len(reqs)} batch replacement requests via Slides API...")
             slides_client.batch_update_presentation(new_deck_id, reqs)
 
-            print("\n[*] Highlighting enabled preview items in light green on Slides 16 & 17...")
-            def highlight_enabled_previews(slides_client, presentation_id, preview_items):
-                SLIDES_API_BASE = "https://slides.googleapis.com/v1"
-                enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
-                pres = slides_client._request("GET", f"{SLIDES_API_BASE}/presentations/{presentation_id}")
-                
-                highlight_reqs = []
-                for slide in pres.get("slides", []):
-                    for elem in slide.get("pageElements", []):
-                        elem_id = elem.get("objectId")
-                        if "shape" in elem and "text" in elem["shape"]:
-                            full_text = "".join(te.get("textRun", {}).get("content", "") for te in elem["shape"]["text"].get("textElements", []))
-                            for line in full_text.split("\n"):
-                                line_str = line.strip()
-                                if not line_str or not line_str.startswith("•"):
-                                    continue
-                                clean_title = line_str.lstrip("• ").strip()
-                                if clean_title in enabled_titles:
-                                    idx = full_text.find(line)
-                                    if idx != -1:
-                                        highlight_reqs.append({
-                                            "updateTextStyle": {
-                                                "objectId": elem_id,
-                                                "textRange": {
-                                                    "type": "FIXED_RANGE",
-                                                    "startIndex": idx,
-                                                    "endIndex": idx + len(line)
-                                                },
-                                                "style": {
-                                                    "backgroundColor": {
-                                                        "opaqueColor": {
-                                                            "rgbColor": {
-                                                                "red": 0.88,
-                                                                "green": 0.96,
-                                                                "blue": 0.88
+            if preview_items:
+                print("\n[*] Highlighting enabled preview items in light green on Slides 16 & 17...")
+                def highlight_enabled_previews(slides_client, presentation_id, preview_items):
+                    SLIDES_API_BASE = "https://slides.googleapis.com/v1"
+                    enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+                    pres = slides_client._request("GET", f"{SLIDES_API_BASE}/presentations/{presentation_id}")
+                    
+                    highlight_reqs = []
+                    for slide in pres.get("slides", []):
+                        for elem in slide.get("pageElements", []):
+                            elem_id = elem.get("objectId")
+                            if "shape" in elem and "text" in elem["shape"]:
+                                full_text = "".join(te.get("textRun", {}).get("content", "") for te in elem["shape"]["text"].get("textElements", []))
+                                for line in full_text.split("\n"):
+                                    line_str = line.strip()
+                                    if not line_str or not line_str.startswith("•"):
+                                        continue
+                                    clean_title = line_str.lstrip("• ").strip()
+                                    if clean_title in enabled_titles:
+                                        idx = full_text.find(line)
+                                        if idx != -1:
+                                            highlight_reqs.append({
+                                                "updateTextStyle": {
+                                                    "objectId": elem_id,
+                                                    "textRange": {
+                                                        "type": "FIXED_RANGE",
+                                                        "startIndex": idx,
+                                                        "endIndex": idx + len(line)
+                                                    },
+                                                    "style": {
+                                                        "backgroundColor": {
+                                                            "opaqueColor": {
+                                                                "rgbColor": {
+                                                                    "red": 0.88,
+                                                                    "green": 0.96,
+                                                                    "blue": 0.88
+                                                                }
                                                             }
                                                         }
-                                                    }
-                                                },
-                                                "fields": "backgroundColor"
-                                            }
-                                        })
-                if highlight_reqs:
-                    slides_client.batch_update_presentation(presentation_id, highlight_reqs)
-                return len(highlight_reqs)
+                                                    },
+                                                    "fields": "backgroundColor"
+                                                }
+                                            })
+                    if highlight_reqs:
+                        slides_client.batch_update_presentation(presentation_id, highlight_reqs)
+                    return len(highlight_reqs)
 
-            hl_count = highlight_enabled_previews(slides_client, new_deck_id, preview_items)
-            print(f"    Highlighted {hl_count} enabled preview lines in light green.")
+                hl_count = highlight_enabled_previews(slides_client, new_deck_id, preview_items)
+                print(f"    Highlighted {hl_count} enabled preview lines in light green.")
 
             print("\n[*] Archiving previous customer decks...")
             arch_count = slides_client.archive_prior_decks(target_folder_id, new_deck_id)
@@ -1496,6 +1534,12 @@ def main():
             print("\n[*] Sweeping remaining unfilled template tokens...")
             sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
             print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
+
+            # Export to high-resolution PDF
+            if selected_format in ("pdf", "both", "all"):
+                print(f"\n[*] Exporting presentation directly to PDF...")
+                slides_client.export_pdf(new_deck_id, output_pdf)
+                print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
 
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
@@ -1507,11 +1551,16 @@ def main():
         print(f"    Saved metrics to: {args.output_json}")
 
     print("\n=======================================================")
-    print("           DECK GENERATION SUCCESSFUL                  ")
-    if not args.dry_run and os.path.exists(output_pptx):
-        print(f" Local PPTX: {output_pptx}")
-    if new_deck_url:
-        print(f" Google Slides: {new_deck_url}")
+    print("           HEALTH ASSESSMENT COMPLETE                  ")
+    if not args.dry_run:
+        if os.path.exists(output_pdf) and selected_format in ("pdf", "both", "all"):
+            print(f" Local PDF:     {output_pdf}")
+        if os.path.exists(output_csv):
+            print(f" Metrics CSV:   {output_csv}")
+        if os.path.exists(output_pptx) and selected_format in ("pptx", "all"):
+            print(f" Local PPTX:    {output_pptx}")
+        if new_deck_url:
+            print(f" Google Slides: {new_deck_url}")
     print("=======================================================\n")
 
     return new_deck_id, new_deck_url, merged

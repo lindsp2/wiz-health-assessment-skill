@@ -183,3 +183,17 @@ class GoogleSlidesClient:
             self._request("PATCH", patch_url)
 
         return len(prior_files)
+
+    def export_pdf(self, presentation_id: str, output_path: str) -> str:
+        """
+        Export a Google Slides presentation directly to a high-resolution PDF file.
+        Uses Drive API export endpoint: /files/{presentation_id}/export?mimeType=application/pdf
+        """
+        url = f"{DRIVE_API_BASE}/files/{presentation_id}/export?mimeType=application/pdf"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.auth_token}"})
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            pdf_bytes = resp.read()
+            with open(output_path, "wb") as f:
+                f.write(pdf_bytes)
+        return output_path

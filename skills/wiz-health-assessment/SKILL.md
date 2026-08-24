@@ -2,13 +2,13 @@
 name: wiz-health-assessment
 description: >-
   Automated skill to conduct comprehensive Wiz Tenant Health Assessments and generate
-  executive-ready presentations in PowerPoint (.pptx) or Google Slides. Use when evaluating cloud
+  executive-ready presentations in PDF, Google Slides, and CSV intake/export templates. Use when evaluating cloud
   security posture, scanning fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
 ---
 
 # Wiz Health Assessment & Presentation Deck Builder Skill
 
-You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment Presentations** in **PowerPoint (.pptx)** or **Google Slides**.
+You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment Presentations** in **PDF**, **Google Slides**, and **PowerPoint (.pptx)**, alongside structured **Customer Intake & Export CSVs**.
 
 ---
 
@@ -28,7 +28,7 @@ You are an expert cloud security architect and technical advisor specializing in
 
 ### A. How to Find Your Wiz Datacenter
 1. In your browser, navigate to: [https://app.wiz.io/tenant-info/data-center-and-regions](https://app.wiz.io/tenant-info/data-center-and-regions)
-2. Locate the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us100`, `eu1`, `gov`).
+2. Locate the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
 
 ### B. How to Generate the Wiz Service Account
 1. In the Wiz Portal, open the Service Account creation page: [https://app.wiz.io/settings/service-accounts/new](https://app.wiz.io/settings/service-accounts/new)
@@ -43,8 +43,8 @@ You are an expert cloud security architect and technical advisor specializing in
 Create or update `.env` in the repository root:
 ```bash
 WIZ_AUTH_URL=https://auth.wiz.io/oauth/token
-WIZ_DATACENTER=us1
-WIZ_API_ENDPOINT=https://api.us1.app.wiz.io/graphql
+WIZ_DATACENTER=us60
+WIZ_API_ENDPOINT=https://api.us60.app.wiz.io/graphql
 WIZ_CLIENT_ID=your_client_id_here
 WIZ_CLIENT_SECRET=your_client_secret_here
 ```
@@ -52,35 +52,36 @@ WIZ_CLIENT_SECRET=your_client_secret_here
 
 ---
 
-## 2. Generating the Executive Presentation Deck
+## 2. Generating Health Assessment Outputs (PDF, CSV, Slides)
 
-You can generate the presentation in **PowerPoint**, **Google Slides**, or **Both**:
+The tool generates both a client-ready **PDF presentation** and a structured **Metrics CSV** (for recordkeeping and customer intake):
 
 ```bash
-# 1. Generate local PowerPoint deck (Default - zero Google setup needed)
-python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
+# 1. Generate PDF Presentation and Populated Metrics CSV (Default)
+python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 
-# 2. Generate live Google Slides presentation in Google Drive
-python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
+# 2. Offline Customer Intake Mode: Generate Deck & PDF from a Customer-Filled CSV (No Wiz API access needed)
+python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --customer "Acme Corporation" --format pdf
 
-# 3. Generate BOTH PowerPoint (.pptx) and Google Slides simultaneously
-python3 scripts/generate_deck.py --format both --customer "Acme Corporation"
+# 3. Generate Blank Customer Metrics Intake CSV Template
+python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
 
-# 4. Interactive Mode (prompts you to choose format)
-python3 scripts/generate_deck.py --customer "Acme Corporation"
+# 4. Generate all formats simultaneously (PDF + Google Slides + Local PPTX + Populated CSV)
+python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
 
-# 5. Dry Run (fetches telemetry & validates metrics without writing files)
+# 5. Dry Run (fetches telemetry & validates metrics without writing presentations)
 python3 scripts/generate_deck.py --dry-run --output-json metrics.json
 ```
 
-### What the Script Generates Automatically:
-* **Slide 5–10:** Workload footprint, user/project adoption, security score (90-day trend, gap vs 50th percentile industry benchmark), and threat detection fidelity.
-* **Slide 11:** Top 3 Critical and Top 3 High Risk controls by issue count, plus Advanced ASM estimated workloads (`round(HTTP/25 + NonHTTP/50)`).
-* **Slide 14:** Canonical Kubernetes coverage ladder and gap analysis (`KC_WC`, `KG_NC`, `KC_AC`, `KC_SE`, `KG_NA`, `KC_CLI`, `KG_NS`, `KG_IA`).
-* **Slide 16 (Public Previews) & Slide 17 (Private Previews):** Full categorization across billable/non-billable tiers with **automated soft light green background highlighting** on all enabled items.
-* **Slide 18 (Roadmap Tracker Usage):** Top 20 customer-tracked roadmap items formatted with Ticket ID, Development Status, and Target Delivery Quarters.
-* **Slide 19–20:** Best practice evaluated scanner configurations (Vulnerability, DSPM, Secrets, AI Security).
-* **Slide 22 (Potential Technology Overlap):** Third-party service accounts detected in the environment with exact First/Last Added creation timeline dates.
+### Generated Artifacts & Workflow:
+1. **High-Resolution PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`):
+   * Rendered directly from Google Slides with custom corporate branding, font styles, soft light-green highlight on enabled Preview Hub features, and cleaned layout.
+2. **Populated Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`):
+   * Complete export of all 660+ variables categorized with Category, Variable Token (`{{VAR}}`), Metric Name, Value, Slide Number, and Description.
+3. **Blank Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
+   * An annotated spreadsheet template that TAMs can email to customers who prefer to provide metrics offline or where direct API connectivity is not permitted.
+4. **Offline Deck Builder Engine (`--input-csv`)**:
+   * Takes a customer-returned CSV, normalizes tokens, auto-derives coverage percentages, and produces the complete Google Slides & PDF deck.
 
 ---
 
@@ -99,12 +100,3 @@ Run the standalone audit:
 ```bash
 python3 scripts/run_health_assessment.py --customer "Acme Corp" -o health_report.md
 ```
-
----
-
-## 4. Reference Documentation
-
-* [`docs/WIZ_SERVICE_ACCOUNT_SETUP.md`](../../docs/WIZ_SERVICE_ACCOUNT_SETUP.md) — Step-by-step credentials guide.
-* [`docs/GOOGLE_SLIDES_SETUP.md`](../../docs/GOOGLE_SLIDES_SETUP.md) — Google Cloud Slides/Drive setup.
-* [`docs/DECK_VARIABLE_CATALOG.md`](../../docs/DECK_VARIABLE_CATALOG.md) — Full 500+ variable catalog and formulas.
-* [`docs/WIZ_API_REFERENCE.md`](../../docs/WIZ_API_REFERENCE.md) — GraphQL API query reference.
