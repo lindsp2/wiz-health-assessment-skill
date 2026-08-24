@@ -1443,10 +1443,10 @@ def main():
         if not default_tmpl.exists():
             generate_intake_template_csv(str(default_tmpl))
 
-    # 2. Local PowerPoint (.pptx) Generation (Always generated for guaranteed offline access)
+    # 2. Local PowerPoint (.pptx) Generation (Only if explicitly requested via --format pptx or --format all)
     template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
     pptx_generated = False
-    if not args.dry_run and os.path.exists(template_pptx):
+    if selected_format in ("pptx", "all") and not args.dry_run and os.path.exists(template_pptx):
         print(f"\n[*] Generating local presentation from {template_pptx}...")
         enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
         pptx_res = process_pptx_template(
@@ -1463,7 +1463,7 @@ def main():
         if pptx_res['swept_tokens'] > 0:
             print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 3. Google Slides & PDF Generation
+    # 3. Google Slides & High-Resolution PDF Generation
     new_deck_id = None
     new_deck_url = None
     pdf_generated = False
@@ -1546,19 +1546,9 @@ def main():
                 pdf_generated = True
                 print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
         else:
-            # Google Slides credentials not configured - check for local LibreOffice conversion
-            lo_bin = shutil.which("libreoffice") or shutil.which("soffice")
-            if lo_bin and pptx_generated:
-                print(f"\n[*] Converting PowerPoint to PDF using local {lo_bin}...")
-                try:
-                    subprocess.run([lo_bin, "--headless", "--convert-to", "pdf", output_pptx, "--outdir", str(Path(output_pdf).parent)], check=True, capture_output=True)
-                    if os.path.exists(output_pdf):
-                        pdf_generated = True
-                        print(f"    [✓] PDF presentation generated: {output_pdf}")
-                except Exception as e:
-                    print(f"    [!] Local PDF conversion error: {e}")
-            else:
-                print("\n[ℹ] Google Drive credentials not configured; generated local offline presentation (.pptx).")
+            print("\n[!] Google Drive / Slides API credentials not configured in .env.")
+            print("    To generate pixel-perfect PDFs, ensure GOOGLE_CLIENT_ID and GOOGLE_REFRESH_TOKEN are set.")
+            print("    See docs/GOOGLE_SLIDES_SETUP.md for 2-minute setup instructions.")
 
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
