@@ -34,6 +34,7 @@ from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
 from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
+from html_deck_generator import generate_html_presentation, render_html_to_pdf
 
 def get_wiz_access_token():
     env_vars = {}
@@ -1427,6 +1428,7 @@ def main():
 
     customer_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', customer_name)
     output_pdf = args.output_pdf or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pdf")
+    output_html = str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.html")
     output_pptx = args.output_pptx or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pptx")
     output_csv = args.output_csv or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}_metrics.csv")
 
@@ -1447,7 +1449,7 @@ def main():
     template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
     pptx_generated = False
     if selected_format in ("pptx", "all") and not args.dry_run and os.path.exists(template_pptx):
-        print(f"\n[*] Generating local presentation from {template_pptx}...")
+        print(f"\n[*] Generating local PowerPoint presentation from {template_pptx}...")
         enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
         pptx_res = process_pptx_template(
             template_path=template_pptx,
@@ -1463,12 +1465,27 @@ def main():
         if pptx_res['swept_tokens'] > 0:
             print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 3. Google Slides & High-Resolution PDF Generation
+    # 3. Standalone Executive PDF & HTML Generation (Zero Google Setup)
+    pdf_generated = False
+    if selected_format in ("pdf", "both", "all") and not args.dry_run:
+        print(f"\n[*] Generating standalone 16:9 executive presentation...")
+        generate_html_presentation(merged, output_html, customer_name, today_str)
+        print(f"    [✓] HTML Slide Deck: {output_html}")
+        
+        print(f"\n[*] Rendering executive presentation to PDF...")
+        pdf_ok = render_html_to_pdf(output_html, output_pdf)
+        if pdf_ok and os.path.exists(output_pdf):
+            pdf_generated = True
+            print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
+        else:
+            print(f"    [!] Direct PDF conversion requires Chrome/Edge/Chromium on your system.")
+            print(f"        You can open {output_html} in your browser and print to PDF anytime.")
+
+    # 4. Google Slides API (Optional: Only if Google credentials are configured in .env)
     new_deck_id = None
     new_deck_url = None
-    pdf_generated = False
 
-    if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
+    if selected_format in ("slides", "google_slides", "both", "all") and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
         if slides_client:
             print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
@@ -1539,17 +1556,6 @@ def main():
             sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
             print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
 
-            # Export to high-resolution PDF
-            if selected_format in ("pdf", "both", "all"):
-                print(f"\n[*] Exporting presentation directly to PDF...")
-                slides_client.export_pdf(new_deck_id, output_pdf)
-                pdf_generated = True
-                print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
-        else:
-            print("\n[!] Google Drive / Slides API credentials not configured in .env.")
-            print("    To generate pixel-perfect PDFs, ensure GOOGLE_CLIENT_ID and GOOGLE_REFRESH_TOKEN are set.")
-            print("    See docs/GOOGLE_SLIDES_SETUP.md for 2-minute setup instructions.")
-
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
         print(f"    Total Variables Computed: {len(merged)}")
@@ -1567,6 +1573,8 @@ def main():
             print(f" Local PDF:     {output_pdf}")
         if os.path.exists(output_csv):
             print(f" Metrics CSV:   {output_csv}")
+        if os.path.exists(output_html):
+            print(f" HTML Deck:     {output_html}")
         if pptx_generated and os.path.exists(output_pptx):
             print(f" Local PPTX:    {output_pptx}")
         if new_deck_url:
