@@ -1473,8 +1473,18 @@ def main():
     if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
         if not slides_client:
-            print("\n[!] Google Slides credentials not found in .env.")
-            print("    Please ensure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN are configured in .env.")
+            # Fallback to local 23-slide presentation generator (requires zero Google setup)
+            if not pptx_generated and os.path.exists(template_pptx):
+                print(f"\n[*] Generating local 23-slide presentation from template...")
+                enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+                pptx_res = process_pptx_template(
+                    template_path=template_pptx,
+                    output_path=output_pptx,
+                    variables=merged,
+                    enabled_preview_titles=enabled_titles
+                )
+                pptx_generated = True
+                print(f"    [✓] Presentation generated: {output_pptx} ({pptx_res['file_size']:,} bytes)")
         else:
             print(f"\n[*] Copying master 23-slide template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)

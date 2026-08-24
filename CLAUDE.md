@@ -75,10 +75,9 @@ Present the user with these two options:
 
 *Once completed, tell the agent in chat to proceed with file generation.*
 
----
-
 ## Deliverables
 
-When `scripts/generate_deck.py --format pdf` finishes, provide a concise executive summary of the tenant posture and clickable markdown links to:
-* 📄 **Executive PDF Presentation**: `[Wiz_Health_Assessment_<Customer>_<Date>.pdf](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)`
+When `scripts/generate_deck.py --format pdf` finishes, provide a concise executive summary of the tenant posture and clickable markdown links to the generated files:
 * 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
+* 📄 **Presentation Deck**: Provide a link to the generated `.pdf` (if Google Slides is configured) or `.pptx` (local presentation deck).
+* **NEVER ask the user for Google credentials or Google OAuth setup.** If Google credentials are not in `.env`, the script automatically falls back to generating the local presentation deck and CSV.

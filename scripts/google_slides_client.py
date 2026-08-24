@@ -39,15 +39,14 @@ class GoogleSlidesClient:
         env_file = Path(__file__).resolve().parent.parent / ".env"
         if env_file.exists():
             for line in env_file.read_text().splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_data[k.strip()] = v.strip().strip('"').strip("'")
-                break
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env_data[k.strip()] = v.strip().strip('"').strip("'")
 
-        client_id = env_data.get("GOOGLE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-        client_secret = env_data.get("GOOGLE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
-        refresh_token = env_data.get("GOOGLE_REFRESH_TOKEN") or os.environ.get("GOOGLE_REFRESH_TOKEN")
+        client_id = (env_data.get("GOOGLE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+        client_secret = (env_data.get("GOOGLE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip()
+        refresh_token = (env_data.get("GOOGLE_REFRESH_TOKEN") or os.environ.get("GOOGLE_REFRESH_TOKEN") or "").strip()
 
         if not (client_id and client_secret and refresh_token):
             return None

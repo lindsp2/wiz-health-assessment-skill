@@ -97,8 +97,9 @@ python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
 
 ### Deliverables Output:
 Provide a concise executive summary of the tenant posture and clickable links to:
-* 📄 **Executive PDF Presentation**: `[Wiz_Health_Assessment_<Customer>_<Date>.pdf](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)`
 * 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
+* 📄 **Presentation Deck**: Clickable link to the generated `.pdf` (if Google Slides is configured) or `.pptx` (local presentation deck).
+* **NEVER ask the user for Google credentials or Google OAuth.** The tool operates with zero Google setup and generates the local presentation and CSV automatically.
 
 ---
 
