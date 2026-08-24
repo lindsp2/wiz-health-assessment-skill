@@ -40,18 +40,21 @@ METRIC_DEFINITIONS: List[Dict[str, Any]] = [
     {"var": "AI_CODE_REPOS_COUNT", "category": "AI Footprint", "name": "AI Code Repositories", "slide": "3", "desc": "VCS repositories using AI technologies", "default": "0"},
     {"var": "AI_WORKLOADS_COUNT", "category": "AI Footprint", "name": "AI Running Workloads", "slide": "3", "desc": "Workloads executing AI models or pipelines", "default": "0"},
 
-    # --- Workloads & Connectors (Slide 4) ---
-    {"var": "CW_TOT", "category": "Workload Inventory", "name": "Total Cloud Workloads", "slide": "4", "desc": "Total active compute workloads", "default": "0"},
-    {"var": "CW_VM", "category": "Workload Inventory", "name": "Virtual Machines Count", "slide": "4", "desc": "Total VMs in inventory", "default": "0"},
-    {"var": "CW_SLS", "category": "Workload Inventory", "name": "Serverless Functions Count", "slide": "4", "desc": "Lambda, Azure Functions, Cloud Run", "default": "0"},
-    {"var": "CW_CR", "category": "Workload Inventory", "name": "Container Registries Count", "slide": "4", "desc": "ECR, ACR, GCR/Artifact Registry", "default": "0"},
-    {"var": "CW_CO", "category": "Workload Inventory", "name": "Container Repositories Count", "slide": "4", "desc": "Total container repositories", "default": "0"},
-    {"var": "CON_WOS", "category": "Connectors & Agents", "name": "Wiz Sensor Workloads", "slide": "4", "desc": "Workloads with Wiz Runtime Sensor installed", "default": "0"},
-    {"var": "CON_K8S", "category": "Connectors & Agents", "name": "Kubernetes Connectors Count", "slide": "4", "desc": "Installed K8s connectors", "default": "0"},
-    {"var": "CON_CC", "category": "Connectors & Agents", "name": "Cloud Connectors Count", "slide": "4", "desc": "Active cloud integration connectors", "default": "0"},
-    {"var": "CON_AC", "category": "Connectors & Agents", "name": "Admission Controllers Count", "slide": "4", "desc": "K8s admission controllers deployed", "default": "0"},
-    {"var": "CON_VCS", "category": "Connectors & Agents", "name": "VCS Connectors Count", "slide": "4", "desc": "GitHub, GitLab, Bitbucket connectors", "default": "0"},
-    {"var": "CON_CICD", "category": "Connectors & Agents", "name": "CI/CD Connectors Count", "slide": "4", "desc": "Pipelines & build server integrations", "default": "0"},
+    # --- Workloads & Compute Inventory (Slide 3 & 4) ---
+    {"var": "WS_T", "category": "Workload Inventory", "name": "Total Compute Workload Scans", "slide": "4", "desc": "Total compute workload scans evaluated", "default": "0"},
+    {"var": "WS_F", "category": "Workload Inventory", "name": "Workload Scans Failed", "slide": "4", "desc": "Failed workload scans", "default": "0"},
+    {"var": "WS_SK", "category": "Workload Inventory", "name": "Workload Scans Skipped", "slide": "4", "desc": "Skipped workload scans", "default": "0"},
+    {"var": "WS_P", "category": "Workload Inventory", "name": "Workload Scan Success Ratio %", "slide": "4", "desc": "Success ratio for compute workload scans", "default": "100%"},
+    {"var": "SERVERLESS_FN_COUNT", "category": "Workload Inventory", "name": "Serverless Functions Count", "slide": "3", "desc": "Lambda, Azure Functions, Cloud Run", "default": "0"},
+    {"var": "SERVERLESS_CT_COUNT", "category": "Workload Inventory", "name": "Serverless Containers Count", "slide": "3", "desc": "Fargate, Cloud Run container instances", "default": "0"},
+    {"var": "R_TOT", "category": "Workload Inventory", "name": "Container Registries Count", "slide": "3, 4", "desc": "ECR, ACR, GCR, GAR registries", "default": "0"},
+    {"var": "K8S", "category": "Workload Inventory", "name": "Kubernetes Clusters Count", "slide": "3, 4", "desc": "Total managed & self-hosted K8s clusters", "default": "0"},
+    {"var": "L_SE", "category": "Connectors & Agents", "name": "Wiz Runtime Sensors", "slide": "3, 4", "desc": "Active Wiz Runtime Sensor instances", "default": "0"},
+    {"var": "CON_WOS", "category": "Connectors & Agents", "name": "Wiz Sensor Workloads", "slide": "3", "desc": "Workloads with Wiz Runtime Sensor installed", "default": "0"},
+    {"var": "CON_K8S", "category": "Connectors & Agents", "name": "Kubernetes Connectors Count", "slide": "3", "desc": "Installed K8s connectors", "default": "0"},
+    {"var": "CON_VCS", "category": "Connectors & Agents", "name": "VCS Connectors Count", "slide": "3", "desc": "GitHub, GitLab, Bitbucket connectors", "default": "0"},
+    {"var": "CON_R", "category": "Connectors & Agents", "name": "Registry Connectors Count", "slide": "3", "desc": "Active container registry connectors", "default": "0"},
+    {"var": "AE_TOT", "category": "Attack Surface Management", "name": "ASM Estimated Workloads", "slide": "11", "desc": "Calculated ASM compute workload units", "default": "0"},
 
     # --- System Health & Scans Snapshot (Slide 5) ---
     {"var": "SHI_C", "category": "System Health", "name": "Open Critical SHIs", "slide": "5", "desc": "Open Critical System Health Issues", "default": "0"},

@@ -18,6 +18,8 @@ import datetime
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -1428,6 +1430,11 @@ def main():
     output_pptx = args.output_pptx or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}.pptx")
     output_csv = args.output_csv or str(Path.cwd() / "output" / f"Wiz_Health_Assessment_{customer_slug}_{today_str}_metrics.csv")
 
+    # Ensure output directory exists
+    Path(output_pdf).parent.mkdir(parents=True, exist_ok=True)
+    Path(output_pptx).parent.mkdir(parents=True, exist_ok=True)
+    Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
+
     # 1. Export Populated Metrics CSV & Blank Intake Template
     if not args.dry_run:
         csv_file = export_metrics_to_csv(merged, output_csv, customer_name)
@@ -1436,37 +1443,34 @@ def main():
         if not default_tmpl.exists():
             generate_intake_template_csv(str(default_tmpl))
 
-    # 2. Local PowerPoint (.pptx) Generation
+    # 2. Local PowerPoint (.pptx) Generation (Always generated for guaranteed offline access)
     template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
-    if selected_format in ("pptx", "all") and not args.dry_run:
-        if not os.path.exists(template_pptx):
-            print(f"\n[!] PowerPoint template not found at: {template_pptx}")
-        else:
-            print(f"\n[*] Generating PowerPoint presentation from {template_pptx}...")
-            enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
-            pptx_res = process_pptx_template(
-                template_path=template_pptx,
-                output_path=output_pptx,
-                variables=merged,
-                enabled_preview_titles=enabled_titles
-            )
-            print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
-            print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
-            if pptx_res.get('highlighted_count'):
-                print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
-            if pptx_res['swept_tokens'] > 0:
-                print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
+    pptx_generated = False
+    if not args.dry_run and os.path.exists(template_pptx):
+        print(f"\n[*] Generating local presentation from {template_pptx}...")
+        enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
+        pptx_res = process_pptx_template(
+            template_path=template_pptx,
+            output_path=output_pptx,
+            variables=merged,
+            enabled_preview_titles=enabled_titles
+        )
+        pptx_generated = True
+        print(f"    [✓] PowerPoint presentation generated: {output_pptx} ({pptx_res['file_size']} bytes)")
+        print(f"    Applied {pptx_res['replacements_made']} token replacements across all slides.")
+        if pptx_res.get('highlighted_count'):
+            print(f"    Highlighted {pptx_res['highlighted_count']} enabled preview lines.")
+        if pptx_res['swept_tokens'] > 0:
+            print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
     # 3. Google Slides & PDF Generation
     new_deck_id = None
     new_deck_url = None
+    pdf_generated = False
 
     if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
-        if not slides_client:
-            print("\n[!] Google Slides credentials not found in .env.")
-            print("    See docs/GOOGLE_SLIDES_SETUP.md or run: python3 scripts/setup_credentials.py")
-        else:
+        if slides_client:
             print(f"\n[*] Copying master template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)
             new_deck_id = copy_res.get("id")
@@ -1539,13 +1543,29 @@ def main():
             if selected_format in ("pdf", "both", "all"):
                 print(f"\n[*] Exporting presentation directly to PDF...")
                 slides_client.export_pdf(new_deck_id, output_pdf)
+                pdf_generated = True
                 print(f"    [✓] PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
+        else:
+            # Google Slides credentials not configured - check for local LibreOffice conversion
+            lo_bin = shutil.which("libreoffice") or shutil.which("soffice")
+            if lo_bin and pptx_generated:
+                print(f"\n[*] Converting PowerPoint to PDF using local {lo_bin}...")
+                try:
+                    subprocess.run([lo_bin, "--headless", "--convert-to", "pdf", output_pptx, "--outdir", str(Path(output_pdf).parent)], check=True, capture_output=True)
+                    if os.path.exists(output_pdf):
+                        pdf_generated = True
+                        print(f"    [✓] PDF presentation generated: {output_pdf}")
+                except Exception as e:
+                    print(f"    [!] Local PDF conversion error: {e}")
+            else:
+                print("\n[ℹ] Google Drive credentials not configured; generated local offline presentation (.pptx).")
 
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
         print(f"    Total Variables Computed: {len(merged)}")
 
     if args.output_json:
+        Path(args.output_json).parent.mkdir(parents=True, exist_ok=True)
         with open(args.output_json, "w", encoding="utf-8") as f:
             json.dump(merged, f, indent=2)
         print(f"    Saved metrics to: {args.output_json}")
@@ -1553,11 +1573,11 @@ def main():
     print("\n=======================================================")
     print("           HEALTH ASSESSMENT COMPLETE                  ")
     if not args.dry_run:
-        if os.path.exists(output_pdf) and selected_format in ("pdf", "both", "all"):
+        if pdf_generated and os.path.exists(output_pdf):
             print(f" Local PDF:     {output_pdf}")
         if os.path.exists(output_csv):
             print(f" Metrics CSV:   {output_csv}")
-        if os.path.exists(output_pptx) and selected_format in ("pptx", "all"):
+        if pptx_generated and os.path.exists(output_pptx):
             print(f" Local PPTX:    {output_pptx}")
         if new_deck_url:
             print(f" Google Slides: {new_deck_url}")
