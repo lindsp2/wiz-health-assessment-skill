@@ -162,8 +162,12 @@ def classify_blocks(blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         if d.get("systemHealthIssues") is not None:
             q_shi = d
-        if d.get("aiSecFindings") is not None or d.get("aiMisconfigFindings") is not None:
-            q_ai = d
+        if (d.get("aiSecFindings") is not None or d.get("aiMisconfigFindings") is not None
+                or d.get("inventoryFindingsCount") is not None or d.get("aiSecurityFindingsCount") is not None
+                or d.get("cloudConfigFindingsCount") is not None or d.get("aiModels") is not None):
+            if q_ai is None:
+                q_ai = {}
+            q_ai.update(d)
         if (d.get("ds_total") is not None or d.get("webCrawlerApiEndpoints") is not None
                 or d.get("webDastAttackerFindings") is not None or d.get("shi_open_crit") is not None
                 or d.get("integrationsList") is not None or d.get("customFrameworksAll") is not None):
@@ -1342,12 +1346,28 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         nodes = (g.get("nodes") if isinstance(g, dict) else []) or []
         return sum(((n.get("analytics") or {}).get("totalFindingCount", 0)) for n in nodes)
 
-    if q_ai.get("aiSecFindings"):
-        out["AI_SF"] = str(sum_tfc(q_ai["aiSecFindings"]))
-    if q_ai.get("aiMisconfigFindings"):
-        out["AI_MF"] = str(sum_tfc(q_ai["aiMisconfigFindings"]))
-    if q_ai.get("aiImpactFindings"):
-        out["AI_IF"] = str(sum_tfc(q_ai["aiImpactFindings"]))
+    ai_sf_c = (q_ai.get("aiSecurityFindingsCount") or q4b.get("aiSecurityFindingsCount") or {}).get("totalCount")
+    ai_mf_c = (q_ai.get("cloudConfigFindingsCount") or q4b.get("cloudConfigFindingsCount") or {}).get("totalCount")
+    ai_if_c = (q_ai.get("inventoryFindingsCount") or q4b.get("inventoryFindingsCount") or {}).get("totalCount")
+
+    if ai_sf_c is not None:
+        out["AI_SF"] = fmt_r(ai_sf_c)
+    elif q_ai.get("aiSecFindings"):
+        out["AI_SF"] = fmt_r(sum_tfc(q_ai["aiSecFindings"]))
+    elif not out.get("AI_SF"):
+        out["AI_SF"] = "0"
+
+    if ai_mf_c is not None:
+        out["AI_MF"] = fmt_r(ai_mf_c)
+    elif q_ai.get("aiMisconfigFindings"):
+        out["AI_MF"] = fmt_r(sum_tfc(q_ai["aiMisconfigFindings"]))
+    elif not out.get("AI_MF"):
+        out["AI_MF"] = "0"
+
+    if ai_if_c is not None:
+        out["AI_IF"] = fmt_r(ai_if_c)
+    elif q_ai.get("aiImpactFindings"):
+        out["AI_IF"] = fmt_r(sum_tfc(q_ai["aiImpactFindings"]))
     elif not out.get("AI_IF"):
         out["AI_IF"] = "0"
 

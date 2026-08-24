@@ -662,6 +662,19 @@ def main():
         nodes { resourceType analytics { totalFindingCount } }
         pageInfo { hasNextPage }
       }
+      aiSecurityFindingsCount: aiSecurityFindings(first: 0) {
+        totalCount
+      }
+      inventoryFindingsCount: inventoryFindings(
+        filterBy: { resource: { type: { equals: ["AI_MODEL", "MCP_SERVER"] } } }
+      ) {
+        totalCount
+      }
+      cloudConfigFindingsCount: configurationFindings(
+        filterBy: { status: [OPEN], frameworkCategory: ["wct-id-1998"] }
+      ) {
+        totalCount
+      }
       aiAgents: cloudResourcesV2(filterBy: {type: {equals: ["AI_AGENT"]}, property: [{propertyName: "status", valueFilter: {stringArrayFilter: {containsAny: ["Active"]}}}]}, first: 0) {
         totalCount
       }
