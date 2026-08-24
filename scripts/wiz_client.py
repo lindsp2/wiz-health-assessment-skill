@@ -28,10 +28,9 @@ class WizClient:
         if env_file:
             self._load_env_file(env_file)
         else:
-            for candidate in [Path.cwd() / ".env", Path(__file__).resolve().parent / ".env", Path(__file__).resolve().parent.parent / ".env"]:
-                if candidate.is_file():
-                    self._load_env_file(candidate)
-                    break
+            repo_env = Path(__file__).resolve().parent.parent / ".env"
+            if repo_env.is_file():
+                self._load_env_file(repo_env)
         
         self.auth_url = auth_url or os.environ.get("WIZ_AUTH_URL", "https://auth.app.wiz.io/oauth/token")
         self.client_id = client_id or os.environ.get("WIZ_CLIENT_ID")

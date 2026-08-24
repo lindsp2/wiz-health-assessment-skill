@@ -37,12 +37,13 @@ from csv_metrics_processor import export_metrics_to_csv, generate_intake_templat
 
 def get_wiz_access_token():
     env_vars = {}
-    env_path = os.environ.get("ENV_FILE", ".env")
-    if not os.path.exists(env_path):
-        for p in [Path.cwd() / ".env", SCRIPT_DIR / ".env", SCRIPT_DIR.parent / ".env"]:
-            if p.exists():
-                env_path = str(p)
-                break
+    env_path = os.environ.get("ENV_FILE")
+    if not env_path or not os.path.exists(env_path):
+        repo_env = SCRIPT_DIR.parent / ".env"
+        if repo_env.exists():
+            env_path = str(repo_env)
+        else:
+            env_path = ".env"
     if os.path.exists(env_path):
         with open(env_path) as f:
             for line in f:

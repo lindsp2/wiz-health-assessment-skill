@@ -36,10 +36,9 @@ class GoogleSlidesClient:
     def from_env(cls) -> Optional["GoogleSlidesClient"]:
         """Instantiate client by loading credentials from .env and refreshing access token."""
         env_data = {}
-        for p in Path(__file__).resolve().parents:
-            env_file = p / ".env"
-            if env_file.exists():
-                for line in env_file.read_text().splitlines():
+        env_file = Path(__file__).resolve().parent.parent / ".env"
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         k, v = line.split("=", 1)
