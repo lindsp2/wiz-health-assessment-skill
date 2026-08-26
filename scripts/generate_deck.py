@@ -61,6 +61,9 @@ def get_wiz_access_token():
     datacenter = env_vars.get("WIZ_DATACENTER") or os.environ.get("WIZ_DATACENTER", "us100")
     api_endpoint = env_vars.get("WIZ_API_ENDPOINT") or os.environ.get("WIZ_API_ENDPOINT", f"https://api.{datacenter}.app.wiz.io/graphql")
 
+    if env_vars.get("CUSTOMER_NAME") and not os.environ.get("CUSTOMER_NAME"):
+        os.environ["CUSTOMER_NAME"] = env_vars["CUSTOMER_NAME"]
+
     if not (client_id and client_secret):
         print("\n[!] Wiz Service Account credentials not found.")
         print("    Please run: python3 scripts/setup_credentials.py")
