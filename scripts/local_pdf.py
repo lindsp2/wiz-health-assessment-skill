@@ -99,6 +99,70 @@ def _dominant_hyperlink_color(src):
     return counts.most_common(1)[0][0] if counts else None
 
 
+# Green-check / red-X marks in the deck are set in a text font (Calibri) that does
+# NOT contain them, plus color emoji (✅ U+2705 / ❌ U+274C). They render via font
+# fallback, which works on Windows/some Linux but FAILS on macOS LibreOffice — the
+# marks silently vanish. We map every mark to a heavy dingbat that DejaVu Sans (a
+# font bundled with LibreOffice on every platform) definitely contains, force that
+# font, and set the check/X color — so the marks render identically everywhere.
+_CHECK_CHARS = set("✅✓✔")   # U+2705, U+2713, U+2714
+_X_CHARS = set("❌✗✘")       # U+274C, U+2717, U+2718
+_MARK_SUB = {"✅": "✔", "✓": "✔", "✔": "✔", "❌": "✘", "✗": "✘", "✘": "✘"}
+_CHECK_GREEN = "218C21"
+_X_RED = "CC1212"
+
+
+def _fix_marks(slide_xml):
+    """Rebuild runs that contain check/X marks so each mark glyph uses DejaVu Sans
+    (which has it) in the right color, while any surrounding text keeps its own
+    font. Runs without marks are returned untouched."""
+
+    def rebuild(m):
+        run = m.group(0)
+        tm = re.search(r"<a:t>([^<]*)</a:t>", run)
+        if not tm:
+            return run
+        text = tm.group(1)
+        if not any(c in _MARK_SUB for c in text):
+            return run
+        rpr_m = re.search(r"<a:rPr\b.*?</a:rPr>|<a:rPr\b[^>]*/>", run, re.S)
+        rpr = rpr_m.group(0) if rpr_m else "<a:rPr/>"
+
+        # Split text into alternating mark / non-mark segments.
+        segs = []
+        cur, cur_mark = "", None
+        for ch in text:
+            is_mark = ch in _MARK_SUB
+            if cur and is_mark != cur_mark:
+                segs.append((cur, cur_mark))
+                cur = ""
+            cur += ch
+            cur_mark = is_mark
+        if cur:
+            segs.append((cur, cur_mark))
+
+        out = []
+        for seg, is_mark in segs:
+            if not is_mark:
+                out.append(f"<a:r>{rpr}<a:t>{seg}</a:t></a:r>")
+                continue
+            new_text = "".join(_MARK_SUB[c] for c in seg)
+            color = _CHECK_GREEN if seg[0] in _CHECK_CHARS else _X_RED
+            r = rpr
+            for tag in ("latin", "cs", "ea", "sym"):
+                r = re.sub(rf'(<a:{tag} typeface=")[^"]*(")', r"\g<1>DejaVu Sans\g<2>", r)
+            if "<a:latin " not in r and "<a:rPr" in r and not r.endswith("/>"):
+                r = re.sub(r"(<a:rPr\b[^>]*>)", r'\1<a:latin typeface="DejaVu Sans"/>', r, count=1)
+            if "<a:solidFill>" in r:
+                r = re.sub(r'(<a:solidFill><a:srgbClr val=")[0-9A-Fa-f]{6}(")', rf"\g<1>{color}\g<2>", r, count=1)
+            elif "<a:rPr" in r and not r.endswith("/>"):
+                r = re.sub(r"(<a:rPr\b[^>]*>)", rf'\1<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>', r, count=1)
+            out.append(f"<a:r>{r}<a:t>{new_text}</a:t></a:r>")
+        return "".join(out)
+
+    return re.sub(r"<a:r>.*?</a:r>", rebuild, slide_xml, flags=re.S)
+
+
 def _normalize_for_libreoffice(pptx_path):
     """Write a temp copy of the .pptx tuned for the LibreOffice renderer:
       1. Bullet paragraphs: swap the oversized '●' glyph for '•' and add a hanging
@@ -165,6 +229,7 @@ def _normalize_for_libreoffice(pptx_path):
                 x = data.decode("utf-8")
                 nx = re.sub(r"<a:p>.*?</a:p>", lambda m: fix_para(m.group(0)), x, flags=re.S)
                 nx = fix_hyperlinks(nx)
+                nx = _fix_marks(nx)
                 if nx != x:
                     changed = True
                     data = nx.encode("utf-8")
