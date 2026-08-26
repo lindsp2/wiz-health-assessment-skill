@@ -54,20 +54,24 @@ WIZ_CLIENT_SECRET=your_client_secret_here
 
 ## 2. Generating the Executive Presentation Deck
 
-You can generate the presentation in **PowerPoint**, **Google Slides**, or **Both**:
+The two user-facing outputs are the **PDF deck** and the **CSV export**. The PDF renders
+offline via LibreOffice when Google is not configured (no credentials needed); the CSV needs
+no renderer at all. (PPTX/Slides remain available for power users but are not the primary
+choices offered to end-users.)
 
 ```bash
-# 1. Generate local PowerPoint deck (Default - zero Google setup needed)
-python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
+# 1. Executive PDF deck + metrics CSV (Default).
+#    Google export if configured, else offline LibreOffice render. No Google required.
+python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 
-# 2. Generate live Google Slides presentation in Google Drive
+# 2. Metrics CSV only — no deck, no LibreOffice. Ideal to hand to your Wiz TAM.
+python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
+
+# 3. Live Google Slides presentation in Google Drive (requires Google OAuth).
 python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
 
-# 3. Generate BOTH PowerPoint (.pptx) and Google Slides simultaneously
-python3 scripts/generate_deck.py --format both --customer "Acme Corporation"
-
-# 4. Interactive Mode (prompts you to choose format)
-python3 scripts/generate_deck.py --customer "Acme Corporation"
+# 4. Local editable PowerPoint (.pptx) — power-user option.
+python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
 
 # 5. Dry Run (fetches telemetry & validates metrics without writing files)
 python3 scripts/generate_deck.py --dry-run --output-json metrics.json

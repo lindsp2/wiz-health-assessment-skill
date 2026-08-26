@@ -8,7 +8,7 @@ description: >-
 
 # Wiz Health Assessment & Executive Presentation Deck Builder Skill
 
-You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You evaluate tenant health, audit scanning fidelity across cloud environments, and autonomously generate executive-ready **PDF Presentations** and structured **Metrics CSV exports** for the user in a single step.
+You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You evaluate tenant health, audit scanning fidelity across cloud environments, and autonomously generate a structured **Metrics CSV export** and, on request, an executive-ready **PDF Presentation**.
 
 ---
 
@@ -29,20 +29,18 @@ You are an expert cloud security architect and technical advisor specializing in
 When the user says:
 > **"Run a health assessment for my Wiz tenant and generate my files"** (or similar)
 
-Follow this exact step-by-step sequence:
+Follow this exact sequence.
 
 ### Step 1: Check `.env` for Configuration
-Inspect `wiz-health-assessment-skill/.env` in the repository root.
+Inspect `wiz-health-assessment-skill/.env` in the repository root. The assessment reads
+`CUSTOMER_NAME`, `WIZ_DATACENTER`, `WIZ_CLIENT_ID`, and `WIZ_CLIENT_SECRET` directly from
+`.env` — **do not ask for the customer name, datacenter, or output format up front.**
 
 #### ✅ Case A: `.env` is configured with `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`
-Proceed immediately to run the assessment (it automatically loads `CUSTOMER_NAME`, `WIZ_DATACENTER`, `WIZ_CLIENT_ID`, and `WIZ_CLIENT_SECRET` from `.env`):
-```bash
-python3 scripts/generate_deck.py --format pdf
-```
-*(Use `python` or `python3` depending on the environment).*
+Configuration is complete. Continue to **Step 2**.
 
 #### ⚠️ Case B: `.env` is NOT configured or missing Client ID / Secret
-Do not prompt the user for secrets in chat. Present the user with these two options to configure their environment:
+Do not prompt the user for secrets in chat. Present these two options to configure `.env`:
 
 1. **Option 1: Update `.env` manually**
    * Create or edit `wiz-health-assessment-skill/.env` on disk:
@@ -67,52 +65,78 @@ Do not prompt the user for secrets in chat. Present the user with these two opti
      *(Note: You may need to use `python` or `python3` depending on your OS configuration).*
    * This script will prompt for your Customer Name, Datacenter, Client ID, and Client Secret, test live connectivity to the Wiz API, and write the `.env` file securely on disk.
 
-*Once completed, reply in chat to proceed with file generation.*
+Once `.env` is configured, continue to **Step 2**.
 
 ---
 
-## 2. Generating & Delivering the Files
+### Step 2: Ask whether they want a PDF deck (default output is the CSV)
+Now that configuration is complete, ask **one** question before running:
 
-Once credentials are confirmed, execute:
-```bash
-python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
-```
+> *"Would you like a polished **PDF deck** as well? By default I'll generate the **metrics CSV**
+> (ideal to review with your Wiz TAM). The PDF is a board-ready executive presentation but needs
+> a one-time **LibreOffice** install (free, offline, no account)."*
+
+* **If the user does NOT want the PDF (or just says "run it"):** generate the CSV only.
+  ```bash
+  python3 scripts/generate_deck.py --format csv
+  ```
+* **If the user WANTS the PDF:** confirm LibreOffice is available:
+  ```bash
+  python3 -c "import sys; sys.path.insert(0,'scripts'); from local_pdf import find_libreoffice; print(find_libreoffice() or 'MISSING')"
+  ```
+  * If it prints a path → `python3 scripts/generate_deck.py --format pdf`
+  * If it prints `MISSING` → tell the user to install LibreOffice once, in their own terminal, then re-run the PDF command:
+    ```bash
+    ./install.sh --yes --skip-credentials
+    ```
+    If they decline, fall back to `--format csv`.
+
+> Do **not** offer PPTX as a user-facing choice — it is internal plumbing the PDF path uses.
+
+---
+
+## 2. Delivering the Files
+
+The **metrics CSV is produced on every run**; the PDF is produced only when the user asks for it.
 
 ### Deliverables Output:
-Provide a concise executive summary of the tenant posture and clickable links to:
-* 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
-* 📄 **Presentation Deck**: Clickable link to the generated `.pdf` (if Google Slides is configured) or `.pptx` (local presentation deck).
-* **NEVER ask the user for Google credentials or Google OAuth.** The tool operates with zero Google setup and generates the local presentation and CSV automatically.
+Provide a concise executive summary of the tenant posture and clickable links to whatever was generated:
+* 📊 **Tenant Metrics CSV** *(every run)*: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)` — hand this to your Wiz TAM.
+* 📄 **Executive PDF Deck** *(only if requested)*: clickable link to the generated `.pdf`. With Google configured it is exported from Slides; otherwise it is rendered locally via LibreOffice (offline, no credentials).
+* If the PDF was requested but LibreOffice was missing and declined, relay the exact install command the script printed; the CSV is still delivered.
+* **NEVER ask the user for Google credentials or Google OAuth.** LibreOffice is a system package (installed via `./install.sh`), not a pip dependency.
 
 ---
 
-## 2. CLI Command Options & Modes
+## 3. CLI Command Options & Modes
 
 ```bash
-# 1. Full Autonomous Assessment (Generates PDF + Metrics CSV - Default)
-python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
+# 1. Metrics CSV only — no deck, no LibreOffice. Default, ideal to hand to your Wiz TAM.
+python3 scripts/generate_deck.py --format csv
 
-# 2. Offline Mode from Customer-Provided CSV (when API access is unavailable)
-python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --customer "Acme Corporation" --format pdf
+# 2. Executive PDF deck + metrics CSV. Offline LibreOffice render if no Google.
+python3 scripts/generate_deck.py --format pdf
 
-# 3. Generate Blank Customer Intake Template
+# 3. Offline Mode from Customer-Provided CSV (when API access is unavailable)
+python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --format pdf
+
+# 4. Generate Blank Customer Intake Template
 python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
 
-# 4. Generate All Formats (PDF + Google Slides + Local PPTX + Populated CSV)
-python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
-
 # 5. Standalone Markdown Audit Report
-python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health_report.md
+python3 scripts/run_health_assessment.py -o health_report.md
 ```
+
+*(`CUSTOMER_NAME` is read from `.env`; pass `--customer "Name"` only to override it.)*
 
 ---
 
-## 3. Output Artifacts
+## 4. Output Artifacts
 
-* **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`):
-  * 23-slide, high-resolution executive deck ready for C-suite and security leadership presentation.
-  * Contains workload inventory, scanning coverage percentages, Kubernetes maturity ladder, Top Controls by risk count, and preview feature recommendations.
 * **Tenant Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`):
   * Complete export of all tenant variables categorized by Category, Token (`{{VAR}}`), Metric Name, Value, Slide, and Description.
+* **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`), when requested:
+  * 23-slide, high-resolution executive deck ready for C-suite and security leadership presentation.
+  * Contains workload inventory, scanning coverage percentages, Kubernetes maturity ladder, Top Controls by risk count, and preview feature recommendations.
 * **Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
   * Annotated template for offline data collection if required.

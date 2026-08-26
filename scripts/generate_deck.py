@@ -34,6 +34,7 @@ from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
 from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
+from local_pdf import convert_pptx_to_pdf
 
 def get_wiz_access_token():
     env_vars = {}
@@ -1358,7 +1359,7 @@ def main():
     parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
     parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
     parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
-    parser.add_argument("--format", choices=["pdf", "slides", "pptx", "both", "all"], default="pdf", help="Presentation output format: 'pdf' (export Google Slides to PDF, Default), 'slides' (Google Slides), 'pptx' (local PowerPoint), 'both' (PDF + Slides), or 'all' (PDF + Slides + PPTX)")
+    parser.add_argument("--format", choices=["pdf", "csv", "slides", "pptx", "both", "all"], default="pdf", help="Output format: 'pdf' (executive deck as PDF - Google export if configured, else local LibreOffice render, Default), 'csv' (metrics CSV only - no deck, no LibreOffice needed, ideal for handing to your Wiz TAM), 'slides' (Google Slides), 'pptx' (local PowerPoint), 'both' (PDF + Slides), or 'all' (PDF + Slides + PPTX). The metrics CSV is always produced regardless of format.")
     parser.add_argument("--input-csv", "-i", help="Path to customer-filled metrics CSV file (generates presentation directly from CSV without needing Wiz API access)")
     parser.add_argument("--output-csv", help="Path to export populated metrics CSV file (default: output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)")
     parser.add_argument("--output-pdf", help="Path to output PDF presentation file (default: output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)")
@@ -1488,6 +1489,23 @@ def main():
                 )
                 pptx_generated = True
                 print(f"    [✓] Presentation generated: {output_pptx} ({pptx_res['file_size']:,} bytes)")
+
+            # Zero-Google local PDF: render the just-built PPTX to PDF via LibreOffice.
+            if selected_format in ("pdf", "both", "all") and pptx_generated and os.path.exists(output_pptx):
+                print(f"\n[*] Rendering local PDF from PPTX (no Google required)...")
+                # Ensure the deck's design fonts (Poppins, DM Sans) are installed so
+                # LibreOffice does not silently fall back to DejaVu Sans.
+                try:
+                    from ensure_libreoffice import install_bundled_fonts
+                    install_bundled_fonts()
+                except Exception:
+                    pass
+                ok, msg = convert_pptx_to_pdf(output_pptx, output_pdf)
+                if ok:
+                    pdf_generated = True
+                    print(f"    [✓] Local PDF presentation generated: {msg}")
+                else:
+                    print(f"    [!] Local PDF NOT generated:\n    {msg}")
         else:
             print(f"\n[*] Copying master 23-slide template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)

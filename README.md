@@ -36,6 +36,18 @@ git clone https://github.com/lindsp77/wiz-health-assessment-skill.git
 cd wiz-health-assessment-skill
 ```
 
+> [!NOTE]
+> **Offline PDF export (no Google required).** The installer also provisions
+> **LibreOffice**, a free, offline renderer used to convert the generated deck to
+> PDF with zero Google credentials. For faithful output it installs the deck's
+> design fonts — **Poppins** and **DM Sans** are bundled in `assets/fonts/` (free
+> OFL) and copied to your user font directory; **JetBrains Mono** comes from the
+> package manager; and **Arial/Calibri** map to free metric-compatible substitutes
+> (Liberation Sans / Carlito). Without the bundled fonts, LibreOffice silently
+> falls back to DejaVu Sans and the deck looks wrong — so the installer handles
+> them for you. Skip all of this with `--skip-libreoffice` (you still get PPTX +
+> CSV, and can enable PDF later).
+
 ### 2. Run the One-Step Installer
 
 * **Linux / macOS / Git Bash:**
@@ -65,10 +77,13 @@ Once cloned, open your AI assistant in the repository folder and simply tell it:
 
 The AI assistant will:
 1. Ask for your **Customer Name** and **Wiz Datacenter**.
-2. Guide you to securely configure your Service Account credentials (via `.env` or the isolated `setup_credentials.py` wizard).
-3. Autonomously execute the assessment and deliver:
-   * 📄 **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`) — 23-slide board-ready presentation.
-   * 📊 **Tenant Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`) — 660+ metric export.
+2. Ask **which output you want**:
+   * 📄 **PDF deck** — a board-ready executive presentation. Needs a **one-time LibreOffice install** (free, offline); the assistant offers to run `./install.sh` for you.
+   * 📊 **CSV export** — the full metrics CSV only, **no install required** — ideal to hand to your **Wiz Technical Account Manager (TAM)** to review together.
+3. Guide you to securely configure your Service Account credentials (via `.env` or the isolated `setup_credentials.py` wizard).
+4. Autonomously execute the assessment and deliver your chosen output:
+   * 📄 **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`) — 23-slide board-ready presentation *(PDF path)*.
+   * 📊 **Tenant Metrics CSV** (`output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv`) — 660+ metric export *(always produced)*.
 
 ---
 
@@ -78,6 +93,17 @@ The AI assistant will:
   ```bash
   python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
   ```
+  With Google configured, the PDF is exported from Google Slides. **Without Google,**
+  the deck is built locally as PPTX and rendered to PDF via LibreOffice — no
+  credentials, fully offline. If LibreOffice is missing, the script prints the exact
+  one-line install command instead of silently producing only a PPTX.
+
+* **Generate the Metrics CSV only (no deck, no LibreOffice needed):**
+  ```bash
+  python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
+  ```
+  Fastest path — queries the tenant and writes just the 660+ metric CSV. Ideal to hand to
+  your Wiz TAM.
 
 * **Generate All Formats (PDF + Google Slides + Local PPTX + CSV):**
   ```bash
@@ -117,7 +143,9 @@ The AI assistant will:
 │   ├── TENANT_HEALTH_ASSESSMENT_GUIDE.md    # 7-Pillar Health Audit Methodology
 │   └── MCP_INSTALLATION_GUIDE.md            # Connecting Wiz MCP across AI clients
 ├── scripts/
-│   ├── generate_deck.py                     # Main CLI tool: Live API -> PPTX / Google Slides deck
+│   ├── generate_deck.py                     # Main CLI tool: Live API -> PDF / PPTX / Google Slides deck
+│   ├── local_pdf.py                         # Offline PPTX -> PDF via LibreOffice (zero Google)
+│   ├── ensure_libreoffice.py                # Cross-platform LibreOffice + font provisioner (installer)
 │   ├── pptx_processor.py                    # Pure-Python OpenXML parser, bullet expander & highlighter
 │   ├── setup_credentials.py                 # Interactive setup wizard to test & create .env
 │   ├── install_skills.py                    # Cross-platform skills linker & installer

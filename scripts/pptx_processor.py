@@ -21,8 +21,24 @@ NS = {
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 }
 
-# Register namespaces so ET doesn't mangle tags when writing back XML
-for prefix, uri in NS.items():
+# Namespaces used only inside extension lists (extLst). ElementTree reserializes any
+# namespace it doesn't know with a generated prefix (ns0, ns3, ...) and drops the
+# inline xmlns declaration, which corrupts these Microsoft extensions on every slide
+# we round-trip. In particular `ahyp:hlinkClr` (hyperlink color) getting rewritten as
+# `ns3:hlinkClr` makes LibreOffice paint those links black instead of the deck's link
+# color — but only on slides that contain a {{token}} (the ones we actually modify),
+# which is exactly the "some links are black" symptom. Register them so prefixes and
+# declarations survive the round-trip.
+EXT_NS = {
+    "ahyp": "http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor",
+    "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+    "a14": "http://schemas.microsoft.com/office/drawing/2010/main",
+    "a16": "http://schemas.microsoft.com/office/drawing/2014/main",
+    "p14": "http://schemas.microsoft.com/office/powerpoint/2010/main",
+}
+
+# Register namespaces so ET doesn't mangle tags/prefixes when writing back XML
+for prefix, uri in {**NS, **EXT_NS}.items():
     ET.register_namespace(prefix, uri)
 
 
@@ -74,6 +90,33 @@ def process_pptx_template(
     highlighted_count = 0
     swept_tokens = 0
 
+    cust_name = var_dict.get("CUSTOMER", "custom")
+
+    def apply_run_repl(s: str) -> str:
+        """Apply the same token substitutions as the flatten path, but to a
+        SINGLE run's text so run boundaries and <a:br/> line breaks survive.
+        Cross-run cleanups (empty date-pair slashes, unknown-token sweep) are
+        intentionally omitted here; if they would change the text, the caller
+        detects the mismatch against the flattened result and falls back to the
+        old single-run write."""
+        if "{Date}" in s:
+            s = s.replace("{Date}", today_str)
+        if "{date}" in s:
+            s = s.replace("{date}", today_str)
+        if "for{{" in s:
+            s = re.sub(r"for\{\{", "for {{", s)
+        for k, v in var_dict.items():
+            tok = "{{" + k + "}}"
+            if tok in s:
+                s = s.replace(tok, v)
+        if "custom TWDC Graph Controls" in s:
+            s = s.replace("custom TWDC Graph Controls", f"{cust_name} custom Graph Controls")
+        for idx in (1, 2, 3):
+            if var_dict.get(f"CI_CBC_{idx}") == "":
+                s = s.replace(f"{{{{CI_CBC_{idx}}}}} Issues", "").replace(f"{{{{CI_CBC_{idx}}}}}", "")
+        s = re.sub(r"%{2,}", "", s)
+        return s
+
     with zipfile.ZipFile(template_file, "r") as zin, zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             content = zin.read(item.filename)
@@ -85,13 +128,29 @@ def process_pptx_template(
                 # Build parent map for inserting expanded multiline paragraphs
                 parent_map = {c: p for p in root.iter() for c in p}
 
+                def para_text_break_aware(para):
+                    """Concatenate a paragraph's run text, turning <a:br/> line
+                    breaks into '\\n' so labels-above-values and other multi-line
+                    layouts survive token expansion (a plain join of <a:t> would
+                    glue 'Advanced License:' to the first bullet of its value)."""
+                    parts = []
+                    for child in list(para):
+                        tag = child.tag.split("}")[-1]
+                        if tag in ("r", "fld"):
+                            te = child.find("a:t", NS)
+                            if te is not None and te.text:
+                                parts.append(te.text)
+                        elif tag == "br":
+                            parts.append("\n")
+                    return "".join(parts)
+
                 paragraphs = list(root.findall(".//a:p", NS))
                 for p in paragraphs:
                     t_elems = p.findall(".//a:t", NS)
                     if not t_elems:
                         continue
 
-                    full_text = "".join(t.text or "" for t in t_elems)
+                    full_text = para_text_break_aware(p)
                     if "{{" not in full_text and "{Date}" not in full_text and "{date}" not in full_text:
                         continue
 
@@ -144,37 +203,102 @@ def process_pptx_template(
                         slide_modified = True
                         parent_tx = parent_map.get(p)
                         if has_multiline and "\n" in replaced_text and parent_tx is not None:
-                            # Multiline expansion: split into separate paragraphs
-                            lines = [l for l in replaced_text.split("\n") if l.strip()]
+                            # Multiline expansion: one paragraph -> one paragraph per
+                            # line, each line KEEPING THE FORMATTING OF THE RUN IT
+                            # CAME FROM. Naively cloning run 0 for every line gives
+                            # value bullets the header run's size/weight (e.g. 11pt
+                            # bold instead of the template's 9pt), which is exactly
+                            # the "different sizes" artifact. So we walk the runs and
+                            # breaks in order and pair each output line with its
+                            # source run, then clone THAT run to preserve its rPr.
+                            A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+                            # Walk runs and <a:br/> in order, building one (text,
+                            # source_run) per line. Each <a:br/> ends a line; two
+                            # consecutive breaks yield an INTENTIONAL blank line
+                            # (e.g. the spacer the template puts between the Advanced
+                            # and Sensor license sections) which must be preserved.
+                            lines = []
+                            cur_text = ""
+                            cur_run = None
+                            fallback_run = None
+                            for child in list(p):
+                                tag = child.tag.split("}")[-1]
+                                if tag == "br":
+                                    lines.append((cur_text, cur_run or fallback_run))
+                                    cur_text = ""
+                                    cur_run = None
+                                elif tag in ("r", "fld"):
+                                    te = child.find("a:t", NS)
+                                    if fallback_run is None:
+                                        fallback_run = child
+                                    txt = apply_run_repl(te.text or "") if te is not None else ""
+                                    segs = txt.split("\n")
+                                    cur_text += segs[0]
+                                    if cur_run is None:
+                                        cur_run = child
+                                    for extra in segs[1:]:
+                                        lines.append((cur_text, cur_run or fallback_run))
+                                        cur_text = extra
+                                        cur_run = child
+                            lines.append((cur_text, cur_run or fallback_run))
+                            # Keep interior blank lines (intentional spacing) but
+                            # trim trailing empties so we don't pad the box bottom.
+                            while lines and lines[-1][0].strip() == "":
+                                lines.pop()
                             p_index = list(parent_tx).index(p)
-                            for i, line in enumerate(lines):
+                            for i, (line, src_run) in enumerate(lines):
                                 p_clone = copy.deepcopy(p)
-                                clone_t_elems = p_clone.findall(".//a:t", NS)
-                                if clone_t_elems:
-                                    clone_t_elems[0].text = line
-                                    for other in clone_t_elems[1:]:
-                                        other.text = ""
+                                # Keep pPr (bullet + paragraph props); drop all runs,
+                                # breaks and fields, then append ONE run cloned from
+                                # the source run so its size/weight/color survive.
+                                for child in list(p_clone):
+                                    if child.tag.split("}")[-1] in ("r", "br", "fld"):
+                                        p_clone.remove(child)
+                                if src_run is not None:
+                                    new_run = copy.deepcopy(src_run)
+                                else:
+                                    new_run = ET.SubElement(p_clone, f"{{{A}}}r")
+                                te = new_run.find("a:t", NS)
+                                if te is None:
+                                    te = ET.SubElement(new_run, f"{{{A}}}t")
+                                te.text = line
+                                p_clone.append(new_run)
 
-                                # Check for soft green highlight
+                                # Soft green highlight for enabled preview features.
                                 clean_line_title = line.lstrip("• ").split(" [")[0].strip().lower()
                                 if clean_line_title and clean_line_title in enabled_titles:
-                                    for r in p_clone.findall(".//a:r", NS):
-                                        rPr = r.find("a:rPr", NS)
-                                        if rPr is None:
-                                            rPr = ET.SubElement(r, "{http://schemas.openxmlformats.org/drawingml/2006/main}rPr")
-                                        hl = rPr.find("a:highlight", NS)
-                                        if hl is None:
-                                            hl = ET.SubElement(rPr, "{http://schemas.openxmlformats.org/drawingml/2006/main}highlight")
-                                            srgb = ET.SubElement(hl, "{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr")
-                                            srgb.set("val", "E0F5E0")
-                                            highlighted_count += 1
+                                    rPr = new_run.find("a:rPr", NS)
+                                    if rPr is None:
+                                        rPr = ET.Element(f"{{{A}}}rPr")
+                                        new_run.insert(0, rPr)
+                                    if rPr.find("a:highlight", NS) is None:
+                                        hl = ET.SubElement(rPr, f"{{{A}}}highlight")
+                                        srgb = ET.SubElement(hl, f"{{{A}}}srgbClr")
+                                        srgb.set("val", "E0F5E0")
+                                        highlighted_count += 1
 
                                 parent_tx.insert(p_index + i, p_clone)
                             parent_tx.remove(p)
                         else:
-                            t_elems[0].text = replaced_text
-                            for other in t_elems[1:]:
-                                other.text = ""
+                            # Structure-preserving path: replace tokens within
+                            # each run so <a:br/> line breaks and separately
+                            # formatted runs (colored HIGH/CRITICAL badges,
+                            # "Enabled" above its value) are kept instead of
+                            # collapsing everything into the first run.
+                            per_run = [apply_run_repl(t.text or "") for t in t_elems]
+                            # replaced_text carries '\n' for <a:br/> breaks, which
+                            # live as separate elements (not in run text), so strip
+                            # them for the equality check against the run join.
+                            if "".join(per_run) == replaced_text.replace("\n", ""):
+                                for t, s in zip(t_elems, per_run):
+                                    t.text = s
+                            else:
+                                # Cross-run token or cleanup the per-run pass
+                                # can't reproduce (split token, date-pair slash):
+                                # fall back to the flattened single-run write.
+                                t_elems[0].text = replaced_text.replace("\n", "")
+                                for other in t_elems[1:]:
+                                    other.text = ""
 
                 # Global sweep fallback across any straggler tokens
                 for t in root.findall(".//a:t", NS):

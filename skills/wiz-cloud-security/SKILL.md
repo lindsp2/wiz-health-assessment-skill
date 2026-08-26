@@ -50,18 +50,22 @@ When the user asks to run a Health Assessment, audit their tenant, or generate a
 
 ## 2. CLI Command Options & Modes
 
+> **PDF renders offline (no Google).** With Google configured, the PDF is exported from
+> Slides; otherwise it is rendered locally via **LibreOffice** (installed once by `./install.sh`).
+> For a no-install, TAM-handoff output, use `--format csv`.
+
 ```bash
-# 1. Full Autonomous Assessment (Generates PDF + Metrics CSV - Default)
+# 1. Full Autonomous Assessment (PDF deck + Metrics CSV - Default)
 python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 
-# 2. Offline Mode from Customer-Provided CSV (when API access is unavailable)
+# 2. Metrics CSV only — no deck, no LibreOffice. Ideal to hand to your Wiz TAM.
+python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
+
+# 3. Offline Mode from Customer-Provided CSV (when API access is unavailable)
 python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --customer "Acme Corporation" --format pdf
 
-# 3. Generate Blank Customer Intake Template
+# 4. Generate Blank Customer Intake Template
 python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
-
-# 4. Generate All Formats (PDF + Google Slides + Local PPTX + Populated CSV)
-python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
 
 # 5. Standalone Markdown Audit Report
 python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health_report.md
