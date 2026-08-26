@@ -167,14 +167,16 @@ def _normalize_for_libreoffice(pptx_path):
     """Write a temp copy of the .pptx tuned for the LibreOffice renderer:
       1. Bullet paragraphs: swap the oversized '●' glyph for '•' and add a hanging
          indent (LibreOffice renders the template's marL=0/indent=0 bullets glued).
-      2. Hyperlink color: LibreOffice restyles hyperlink runs and repaints them dark
-         (black), overriding the run's explicit color — but only for links that sit
-         mid-paragraph next to other runs, which is why some links come out black and
-         others don't. We ensure each link run carries the deck's link color, then
-         remove the hyperlink relationship so LibreOffice stops restyling it. The
-         text keeps its color + underline; it just isn't clickable in this PDF.
-    The source .pptx is untouched (PowerPoint keeps clickable, correctly-colored
-    links); returns the temp path, or the original path if nothing needed changing."""
+      2. Hyperlink color (KEEP links clickable): LibreOffice restyles hyperlink runs
+         and repaints them dark, overriding the run's explicit color — worst for
+         links sitting mid-paragraph next to other runs (why some links go black and
+         others don't). The deck also carries a Microsoft `ahyp:hlinkClr val="tx"`
+         hint ("use text color") that LibreOffice resolves to a dark theme color.
+         We flip that hint to `val="hlink"` and point the theme's hyperlink color at
+         the deck's own link color, so every link renders in that color AND stays a
+         real clickable hyperlink in the PDF.
+    The source .pptx is untouched (PowerPoint renders it correctly on its own);
+    returns the temp path, or the original path if nothing needed changing."""
     try:
         src = zipfile.ZipFile(pptx_path)
     except Exception:
@@ -200,25 +202,24 @@ def _normalize_for_libreoffice(pptx_path):
         p = p.replace('<a:buChar char="●"/>', '<a:buChar char="•"/>')
         return p
 
-    def fix_hyperlinks(x):
-        def per_run(m):
-            r = m.group(0)
-            if "hlinkClick" not in r:
-                return r
-            # Guarantee the link color survives: if this run has no explicit fill,
-            # inject the deck's link color right after the rPr open tag.
-            if link_color and "<a:solidFill>" not in r:
-                r = re.sub(
-                    r"(<a:rPr\b[^>]*>)",
-                    rf'\1<a:solidFill><a:srgbClr val="{link_color}"/></a:solidFill>',
-                    r, count=1,
-                )
-            # Drop the hyperlink relationship so LibreOffice stops repainting it dark.
-            r = re.sub(r"<a:hlinkClick[^>]*?/>", "", r)
-            r = re.sub(r"<a:hlinkClick.*?</a:hlinkClick>", "", r, flags=re.S)
-            return r
+    def fix_hyperlink_color(x):
+        # Flip the MS hyperlink-color hint from "tx" (use text color -> LibreOffice
+        # paints it dark) to "hlink" (use the theme hyperlink color, set below).
+        # Hyperlinks themselves are left intact, so they stay clickable.
+        return re.sub(r'(<[A-Za-z0-9]*:?hlinkClr\b[^>]*\bval=")tx(")', r"\1hlink\2", x)
 
-        return re.sub(r"<a:r>.*?</a:r>", per_run, x, flags=re.S)
+    def fix_theme(x):
+        # Point the theme's hyperlink + followed-hyperlink colors at the deck's link
+        # color so LibreOffice paints all links in it.
+        if not link_color:
+            return x
+        for tag in ("hlink", "folHlink"):
+            x = re.sub(
+                rf'(<a:{tag}>\s*<a:)(?:srgbClr|sysClr)\s+val="[^"]+"(?:\s+lastClr="[^"]+")?\s*/>',
+                lambda m: f'{m.group(1)}srgbClr val="{link_color}"/>',
+                x,
+            )
+        return x
 
     changed = False
     buf = BytesIO()
@@ -228,8 +229,14 @@ def _normalize_for_libreoffice(pptx_path):
             if re.match(r"ppt/slides/slide\d+\.xml$", item.filename):
                 x = data.decode("utf-8")
                 nx = re.sub(r"<a:p>.*?</a:p>", lambda m: fix_para(m.group(0)), x, flags=re.S)
-                nx = fix_hyperlinks(nx)
+                nx = fix_hyperlink_color(nx)
                 nx = _fix_marks(nx)
+                if nx != x:
+                    changed = True
+                    data = nx.encode("utf-8")
+            elif re.match(r"ppt/theme/theme\d+\.xml$", item.filename):
+                x = data.decode("utf-8")
+                nx = fix_theme(x)
                 if nx != x:
                     changed = True
                     data = nx.encode("utf-8")
