@@ -40,10 +40,7 @@ If the customer name or datacenter are not specified in the prompt or already co
      1. Navigate to: `https://app.wiz.io/tenant-info/data-center-and-regions`
      2. Look for the **Tenant Data Center** value (e.g. `us1`, `us2`, `us20`, `us60`, `us100`, `eu1`, `gov`).
 
----
-
-### Step 2: Update `.env` with Datacenter & Endpoint
-Update or create the `.env` file in the `wiz-health-assessment-skill/` directory with the provided values:
+Then update or create the `.env` file in the `wiz-health-assessment-skill/` directory:
 ```bash
 WIZ_DATACENTER=<datacenter>
 WIZ_API_ENDPOINT=https://api.<datacenter>.app.wiz.io/graphql
@@ -52,13 +49,38 @@ WIZ_AUTH_URL=https://auth.app.wiz.io/oauth/token
 
 ---
 
+### Step 2: Ask which output the user wants — PDF deck or CSV export
+**Always ask before proceeding. Do not assume.** Offer exactly two choices:
+
+1. **📄 PDF deck** — polished, board-ready executive presentation. **Requires a one-time
+   LibreOffice install** (free, offline, no account) to render the PDF without Google.
+2. **📊 CSV export** — the full metrics CSV only. **No install needed.** Ideal to hand to
+   your **Wiz Technical Account Manager (TAM)** to review together.
+
+> Do **not** offer PPTX as a user-facing choice — it is internal plumbing the PDF path uses.
+
+**If the user picks PDF**, check whether LibreOffice is available:
+```bash
+python3 -c "import sys; sys.path.insert(0,'scripts'); from local_pdf import find_libreoffice; print(find_libreoffice() or 'MISSING')"
+```
+If it prints `MISSING`, offer to install it — tell the user to run, in their own terminal:
+```bash
+./install.sh --yes --skip-credentials
+```
+If they decline the install, fall back to the CSV export.
+
+**If the user picks CSV**, skip the LibreOffice step entirely.
+
+---
+
 ### Step 3: Check for Service Account Credentials in `.env`
 Inspect the local `.env` file for non-empty `WIZ_CLIENT_ID` and `WIZ_CLIENT_SECRET`:
 
 #### ✅ Case A: Credentials are present in `.env`
-Proceed immediately to run the assessment and generate the files:
+Proceed to run the assessment using the format chosen in Step 2:
 ```bash
-python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
+python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"   # PDF path
+python3 scripts/generate_deck.py --format csv --customer "<Customer Name>"   # CSV path
 ```
 *(Use `python` or `python3` depending on the environment).*
 
@@ -88,35 +110,35 @@ Present the user with the following two options:
 
 ---
 
-## 2. Generating & Delivering the Files
+## 2. Delivering the Files
 
-Once credentials are confirmed, execute:
-```bash
-python3 scripts/generate_deck.py --format pdf --customer "<Customer Name>"
-```
+Run the command for the format chosen in Step 2 (see Section 1, Case A). The **metrics CSV is
+produced on every run**; the PDF is produced only on the PDF path.
 
 ### Deliverables Output:
-Provide a concise executive summary of the tenant posture and clickable links to:
-* 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)`
-* 📄 **Presentation Deck**: Clickable link to the generated `.pdf` (if Google Slides is configured) or `.pptx` (local presentation deck).
-* **NEVER ask the user for Google credentials or Google OAuth.** The tool operates with zero Google setup and generates the local presentation and CSV automatically.
+Provide a concise executive summary of the tenant posture and clickable links to whatever was
+generated:
+* 📊 **Tenant Metrics CSV**: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)` — hand this to your Wiz TAM.
+* 📄 **Executive PDF Deck** *(PDF path only)*: clickable link to the generated `.pdf`. With Google configured it is exported from Slides; otherwise it is rendered locally via LibreOffice (offline, no credentials).
+* If the PDF path was chosen but LibreOffice was missing and declined, relay the exact install command the script printed; the CSV is still delivered.
+* **NEVER ask the user for Google credentials or Google OAuth.** LibreOffice is a system package (installed via `./install.sh`), not a pip dependency.
 
 ---
 
-## 2. CLI Command Options & Modes
+## 3. CLI Command Options & Modes
 
 ```bash
-# 1. Full Autonomous Assessment (Generates PDF + Metrics CSV - Default)
+# 1. Executive PDF deck + metrics CSV (Default). Offline LibreOffice render if no Google.
 python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 
-# 2. Offline Mode from Customer-Provided CSV (when API access is unavailable)
+# 2. Metrics CSV only — no deck, no LibreOffice. Ideal to hand to your Wiz TAM.
+python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
+
+# 3. Offline Mode from Customer-Provided CSV (when API access is unavailable)
 python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --customer "Acme Corporation" --format pdf
 
-# 3. Generate Blank Customer Intake Template
+# 4. Generate Blank Customer Intake Template
 python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
-
-# 4. Generate All Formats (PDF + Google Slides + Local PPTX + Populated CSV)
-python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
 
 # 5. Standalone Markdown Audit Report
 python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health_report.md
@@ -124,7 +146,7 @@ python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health
 
 ---
 
-## 3. Output Artifacts
+## 4. Output Artifacts
 
 * **Executive PDF Presentation** (`output/Wiz_Health_Assessment_<Customer>_<Date>.pdf`):
   * 23-slide, high-resolution executive deck ready for C-suite and security leadership presentation.

@@ -38,6 +38,13 @@ wheels/
 output/
 reports/
 
+# Local virtualenv
+.venv/
+
+# Installer-generated local skill registrations (symlinks created by install_skills.py)
+.claude/
+.agent/
+
 # IDE & OS
 .DS_Store
 .idea/

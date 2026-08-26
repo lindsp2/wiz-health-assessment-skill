@@ -18,6 +18,7 @@ Steps:
 
 Options:
   --skip-deps            Do not install Python dependencies.
+  --skip-libreoffice     Do not install LibreOffice (offline PDF renderer).
   --target NAME          Skill target: claude, jetski, cursor, workspace, all.
   --yes                  Accept defaults; never prompt (for unattended installs).
   --skip-credentials     Do not launch the credentials wizard.
@@ -116,11 +117,27 @@ def main():
         return 1
 
     args = sys.argv[1:]
+    assume_yes = "--yes" in args or "-y" in args
+
     if "--skip-deps" in args:
         args = [a for a in args if a != "--skip-deps"]
         print("[*] Skipping dependency installation (--skip-deps).")
     else:
         install_dependencies()
+
+    # LibreOffice is the offline (Google-free) PPTX -> PDF renderer. It is a
+    # system package, so it is provisioned here rather than via requirements.txt.
+    # Consumed locally and NOT forwarded to install_skills.py.
+    if "--skip-libreoffice" in args:
+        args = [a for a in args if a != "--skip-libreoffice"]
+        print("[*] Skipping LibreOffice install (--skip-libreoffice).")
+    else:
+        print()
+        try:
+            from ensure_libreoffice import ensure_libreoffice  # noqa: E402
+            ensure_libreoffice(assume_yes=assume_yes)
+        except Exception as exc:
+            print(f"[!] LibreOffice provisioning skipped ({exc}). PPTX + CSV still work.")
 
     installer = SCRIPTS_DIR / "install_skills.py"
     if not installer.exists():
