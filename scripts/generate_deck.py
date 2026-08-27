@@ -827,139 +827,43 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     }
     """
 
-    # --- Data-scan coverage (accurate multi-type scoped queries covering all DSPM Billable Units) ---
-    # Batch 1: Storage Buckets, Databases, AI Datasets (and granular counts)
-    q5_ds_b1 = """
-    query TamApiDeltaDataScansBatch1 {
-      b1_total: graphSearch(projectId: "*", quick: true, query: {
-        type: [BUCKET, DATABASE, AI_DATASET]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
+    # --- Data-scan coverage (PER-TYPE scoped queries, summed) ---
+    # graphSearch caps totalCount at 10,000 (sets maxCountReached). To avoid a large
+    # tenant silently capping a *combined* batch and undercounting, each DSPM resource
+    # type is queried on its OWN (total/failed/skipped), then summed. maxCountReached
+    # is checked per query so any remaining cap (a single type > 10k) is surfaced
+    # loudly instead of silently truncating. DATA_WAREHOUSE is not a valid graphSearch
+    # type, so DS_DW has no query and stays 0 (warehouses fold into DATABASE).
+    DS_TYPES = [
+        ("bucket", "BUCKET"),
+        ("db", "DATABASE"),
+        ("ai", "AI_DATASET"),
+        ("vdrv", "VIRTUAL_DRIVE"),
+        ("fss", "FILE_SYSTEM_SERVICE"),
+        ("srvless", "SERVERLESS"),
+    ]
 
-      b1_failed: graphSearch(projectId: "*", quick: true, query: {
-        type: [BUCKET, DATABASE, AI_DATASET]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
+    def _ds_search(wiz_type, status=None):
+        where = 'name: { CONTAINS: ["data scan"] }'
+        if status:
+            where += ', status: { EQUALS: ["%s"] }' % status
+        return (
+            'graphSearch(projectId: "*", quick: true, query: { '
+            'type: [%s] relationships: [{ type: [{ type: SCANNED, reverse: true }] '
+            'with: { type: [SECURITY_TOOL_SCAN], select: true, where: { %s } } }] '
+            'select: true }) { totalCount maxCountReached }' % (wiz_type, where)
+        )
 
-      b1_skipped: graphSearch(projectId: "*", quick: true, query: {
-        type: [BUCKET, DATABASE, AI_DATASET]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
+    def _ds_batch_query(batch_types):
+        body = ""
+        for alias, wtype in batch_types:
+            body += f"      ds_{alias}_total: {_ds_search(wtype)}\n"
+            body += f'      ds_{alias}_failed: {_ds_search(wtype, "ScanStatusError")}\n'
+            body += f'      ds_{alias}_skipped: {_ds_search(wtype, "ScanStatusSkipped")}\n'
+        return "query TamApiDeltaDataScans {\n" + body + "    }\n"
 
-      ds_bucket: graphSearch(projectId: "*", quick: true, query: {
-        type: [BUCKET]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
-        }]
-        select: true
-      }) { totalCount }
-
-      ds_db: graphSearch(projectId: "*", quick: true, query: {
-        type: [DATABASE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
-        }]
-        select: true
-      }) { totalCount }
-
-      ds_ai: graphSearch(projectId: "*", quick: true, query: {
-        type: [AI_DATASET]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
-        }]
-        select: true
-      }) { totalCount }
-    }
-    """
-
-    # Batch 2: Serverless, Virtual Drives, File System Services, Non-OS Disks
-    q5_ds_b2 = """
-    query TamApiDeltaDataScansBatch2 {
-      b2_total: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
-
-      b2_failed: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusError"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
-
-      b2_skipped: graphSearch(projectId: "*", quick: true, query: {
-        type: [SERVERLESS, VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: {
-            type: [SECURITY_TOOL_SCAN]
-            select: true
-            where: { name: { CONTAINS: ["data scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } }
-          }
-        }]
-        select: true
-      }) { totalCount maxCountReached }
-
-      ds_vdrv: graphSearch(projectId: "*", quick: true, query: {
-        type: [VIRTUAL_DRIVE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
-        }]
-        select: true
-      }) { totalCount }
-
-      ds_fss: graphSearch(projectId: "*", quick: true, query: {
-        type: [FILE_SYSTEM_SERVICE]
-        relationships: [{
-          type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["data scan"] } } }
-        }]
-        select: true
-      }) { totalCount }
-    }
-    """
+    q5_ds_b1 = _ds_batch_query(DS_TYPES[:3])   # BUCKET, DATABASE, AI_DATASET
+    q5_ds_b2 = _ds_batch_query(DS_TYPES[3:])   # VIRTUAL_DRIVE, FILE_SYSTEM_SERVICE, SERVERLESS
 
     # Batch 3: System Health Issues by Deployment Type (Open Critical + High)
     q5_shi_breakdown = """
@@ -1123,16 +1027,30 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     time.sleep(1.5)
     res5_vmi = run_gql(api_endpoint, access_token, q5_vmi)
 
-    d1 = res5_ds_b1.get("data", {})
-    d2 = res5_ds_b2.get("data", {})
+    d1 = res5_ds_b1.get("data", {}) or {}
+    d2 = res5_ds_b2.get("data", {}) or {}
+    ds_data = {**d1, **d2}
     d_shi = res5_shi.get("data", {})
     d_non_os = res5_non_os.get("data", {})
     d_rci = res5_rci.get("data", {})
     d_vmi = res5_vmi.get("data", {})
 
-    ds_tot_sum = (d1.get("b1_total") or {}).get("totalCount", 0) + (d2.get("b2_total") or {}).get("totalCount", 0)
-    ds_fail_sum = (d1.get("b1_failed") or {}).get("totalCount", 0) + (d2.get("b2_failed") or {}).get("totalCount", 0)
-    ds_skip_sum = (d1.get("b1_skipped") or {}).get("totalCount", 0) + (d2.get("b2_skipped") or {}).get("totalCount", 0)
+    # Sum the per-type counts (each query dodges the 10k cap on its own type) and
+    # record any type/status that STILL hit the cap so it can be surfaced, not hidden.
+    ds_tot_sum = ds_fail_sum = ds_skip_sum = 0
+    ds_capped = []
+    ds_type_totals = {}
+    for _alias, _wtype in DS_TYPES:
+        nt = ds_data.get(f"ds_{_alias}_total") or {}
+        nf = ds_data.get(f"ds_{_alias}_failed") or {}
+        ns = ds_data.get(f"ds_{_alias}_skipped") or {}
+        ds_tot_sum += nt.get("totalCount") or 0
+        ds_fail_sum += nf.get("totalCount") or 0
+        ds_skip_sum += ns.get("totalCount") or 0
+        ds_type_totals[_alias] = nt.get("totalCount") or 0
+        for _lbl, _node in (("total", nt), ("failed", nf), ("skipped", ns)):
+            if _node.get("maxCountReached"):
+                ds_capped.append(f"{_wtype}/{_lbl}")
 
     res5 = {"data": {}, "errors": []}
     res5["data"].update(res5_core.get("data") or {})
@@ -1140,17 +1058,17 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         res5["data"].update(res5_audit.get("data"))
     if res5_audit.get("errors"):
         res5["errors"].extend(res5_audit.get("errors"))
-    
+
     res5["data"]["ds_total"] = {"totalCount": ds_tot_sum}
     res5["data"]["ds_failed"] = {"totalCount": ds_fail_sum}
     res5["data"]["ds_skipped"] = {"totalCount": ds_skip_sum}
-    
-    # Granular DSPM
-    res5["data"]["ds_bucket"] = d1.get("ds_bucket") or {"totalCount": 0}
-    res5["data"]["ds_db"] = d1.get("ds_db") or {"totalCount": 0}
-    res5["data"]["ds_ai"] = d1.get("ds_ai") or {"totalCount": 0}
-    res5["data"]["ds_vdrv"] = d2.get("ds_vdrv") or {"totalCount": 0}
-    res5["data"]["ds_fss"] = d2.get("ds_fss") or {"totalCount": 0}
+
+    # Granular DSPM per-type breakdown (keys consumed by api_delta_processor).
+    res5["data"]["ds_bucket"] = {"totalCount": ds_type_totals.get("bucket", 0)}
+    res5["data"]["ds_db"] = {"totalCount": ds_type_totals.get("db", 0)}
+    res5["data"]["ds_ai"] = {"totalCount": ds_type_totals.get("ai", 0)}
+    res5["data"]["ds_vdrv"] = {"totalCount": ds_type_totals.get("vdrv", 0)}
+    res5["data"]["ds_fss"] = {"totalCount": ds_type_totals.get("fss", 0)}
 
     # Granular Workload Scans
     res5["data"].update(d_non_os)
@@ -1162,7 +1080,10 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
 
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
     _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
-    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans: {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")
+    if ds_capped:
+        print(f"    [!] DATA-SCAN 10k CAP HIT on: {', '.join(ds_capped)} — DS totals are a FLOOR (undercount). "
+              f"That type exceeds 10,000 scans; sub-partition it (e.g. by cloud provider/subscription) for an exact count.")
+    print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans (per-type summed): {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")
 
     print("[*] Running K8s Coverage Ladder & Gaps query (canonical property counts)...")
     q_k8s_cov = """
