@@ -1392,6 +1392,19 @@ def main():
         customer_name = args.customer or merged.get("CUSTOMER", {}).get("value") or "Customer"
         preview_items = []
         preview_vars = {}
+        # Extract enabled preview items from CSV bullet list variables for slide highlighting
+        preview_keys = [
+            "ALL_NON_BILLABLE_PREVIEW", "BILLABLE_ADVANCED", "BILLABLE_DEFEND", 
+            "BILLABLE_ESSENTIAL", "PRIVATE_BILLABLE", "PRIVATE_NON_BILLABLE", 
+            "NON_BILLABLE_ADVANCED", "NON_BILLABLE_DEFEND", "NON_BILLABLE_ESSENTIAL", "NON_BILLABLE_PLATFORM"
+        ]
+        for pk in preview_keys:
+            if pk in merged:
+                val = merged[pk].get("value", "")
+                for line in val.split("\n"):
+                    l_clean = line.strip().lstrip("•").strip()
+                    if l_clean:
+                        preview_items.append({"title": l_clean, "enabled": True})
         
         reqs = []
         for k, v_dict in merged.items():
