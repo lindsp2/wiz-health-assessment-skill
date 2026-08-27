@@ -42,6 +42,69 @@ for prefix, uri in {**NS, **EXT_NS}.items():
     ET.register_namespace(prefix, uri)
 
 
+# --- Status-mark normalization (green check / red X) --------------------------
+# The deck's status marks use color emoji (✅ U+2705 / ❌ U+274C) and dingbats set
+# in font "Calibri", which lacks those glyphs and is NOT embedded in the deck — so
+# on a viewer whose font fallback doesn't cover them (seen on some customer
+# machines) the marks silently vanish. We rewrite every mark to ✓ (U+2713) / ✗
+# (U+2717) in "JetBrains Mono", which IS embedded in this deck and contains both
+# glyphs, so the marks travel with the .pptx and render in PowerPoint, Google
+# Slides and LibreOffice alike. Surrounding text in the same run keeps its font.
+_MARK_FONT = "JetBrains Mono"
+_MARK_MAP = {"✅": "✓", "✓": "✓", "✔": "✓", "❌": "✗", "✗": "✗", "✘": "✗"}
+_MARK_CHECK_SRC = set("✅✓✔")
+_MARK_GREEN = "218C21"
+_MARK_RED = "CC1212"
+
+
+def normalize_status_marks(slide_xml: str) -> str:
+    """Rewrite runs containing check/X marks so each mark glyph uses an embedded
+    font that actually has it. Runs with no marks are returned unchanged."""
+
+    def rebuild(m):
+        run = m.group(0)
+        tm = re.search(r"<a:t>([^<]*)</a:t>", run)
+        if not tm:
+            return run
+        text = tm.group(1)
+        if not any(c in _MARK_MAP for c in text):
+            return run
+        rpr_m = re.search(r"<a:rPr\b.*?</a:rPr>|<a:rPr\b[^>]*/>", run, re.S)
+        rpr = rpr_m.group(0) if rpr_m else "<a:rPr/>"
+
+        segs, cur, cur_mark = [], "", None
+        for ch in text:
+            is_mark = ch in _MARK_MAP
+            if cur and is_mark != cur_mark:
+                segs.append((cur, cur_mark))
+                cur = ""
+            cur += ch
+            cur_mark = is_mark
+        if cur:
+            segs.append((cur, cur_mark))
+
+        out = []
+        for seg, is_mark in segs:
+            if not is_mark:
+                out.append(f"<a:r>{rpr}<a:t>{seg}</a:t></a:r>")
+                continue
+            new_text = "".join(_MARK_MAP[c] for c in seg)
+            color = _MARK_GREEN if seg[0] in _MARK_CHECK_SRC else _MARK_RED
+            r = rpr
+            for tag in ("latin", "cs", "ea", "sym"):
+                r = re.sub(rf'(<a:{tag} typeface=")[^"]*(")', rf"\g<1>{_MARK_FONT}\g<2>", r)
+            if "<a:latin " not in r and "<a:rPr" in r and not r.endswith("/>"):
+                r = re.sub(r"(<a:rPr\b[^>]*>)", rf'\1<a:latin typeface="{_MARK_FONT}"/>', r, count=1)
+            if "<a:solidFill>" in r:
+                r = re.sub(r'(<a:solidFill><a:srgbClr val=")[0-9A-Fa-f]{6}(")', rf"\g<1>{color}\g<2>", r, count=1)
+            elif "<a:rPr" in r and not r.endswith("/>"):
+                r = re.sub(r"(<a:rPr\b[^>]*>)", rf'\1<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>', r, count=1)
+            out.append(f"<a:r>{r}<a:t>{new_text}</a:t></a:r>")
+        return "".join(out)
+
+    return re.sub(r"<a:r>.*?</a:r>", rebuild, slide_xml, flags=re.S)
+
+
 def process_pptx_template(
     template_path: str,
     output_path: str,
@@ -311,6 +374,14 @@ def process_pptx_template(
 
                 if slide_modified:
                     content = ET.tostring(root, encoding="utf-8")
+
+                # Normalize status marks on EVERY slide (even ones with no tokens,
+                # e.g. the scanner-config tables) so the green check / red X glyphs
+                # use an embedded font and never vanish on the customer's viewer.
+                _txt = content.decode("utf-8")
+                _ntxt = normalize_status_marks(_txt)
+                if _ntxt != _txt:
+                    content = _ntxt.encode("utf-8")
 
             zout.writestr(item, content)
 
