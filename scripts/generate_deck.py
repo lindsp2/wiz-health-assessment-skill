@@ -35,6 +35,7 @@ from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
 from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
 from local_pdf import convert_pptx_to_pdf
+from run_logger import init_logger, get_logger, default_log_path
 
 def get_wiz_access_token():
     env_vars = {}
@@ -89,7 +90,17 @@ def get_wiz_access_token():
         token = json.loads(resp.read()).get("access_token")
     return token, api_endpoint
 
-def run_gql(api_endpoint, access_token, query, variables=None, retries=4, required_keys=None):
+def _query_timeout():
+    """Per-query socket timeout in seconds. Large tenants can raise it via
+    WIZ_QUERY_TIMEOUT so slow graphSearch traversals don't time out on retry."""
+    try:
+        return max(30, int(os.environ.get("WIZ_QUERY_TIMEOUT", "120")))
+    except (TypeError, ValueError):
+        return 120
+
+
+def run_gql(api_endpoint, access_token, query, variables=None, retries=4,
+            required_keys=None, name=None):
     """Execute a GraphQL query with resilient retries.
 
     Retries on 429 (rate limit) and 5xx (gateway/timeout) errors, and on
@@ -97,11 +108,22 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
     is given, a response missing all of them is treated as a soft failure and
     retried. On final failure returns {"data": {}} instead of raising, so one
     flaky query never blanks unrelated metrics or crashes the deck build.
+
+    Every call records a structured outcome (name, duration, attempts, HTTP
+    codes, status) into the run logger so large-account failures are visible in
+    the end-of-run diagnostics instead of silently zeroing metrics.
     """
+    from run_logger import get_logger, OK, EMPTY, PERMISSION, FAILED
+    logger = get_logger()
+    name = name or "unnamed_query"
+
     payload = {"query": query}
     if variables:
         payload["variables"] = variables
     last_err = None
+    http_codes = []
+    started = time.time()
+    timeout = _query_timeout()
     for attempt in range(retries):
         try:
             time.sleep(1.5)
@@ -110,7 +132,7 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {access_token}"}
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read())
 
             data = result.get("data")
@@ -124,7 +146,8 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
             )
             if is_perm_err:
                 msg = errors[0].get("message") if errors else "access denied"
-                print(f"    [Permission restricted: {msg}] Continuing without retry.")
+                logger.record_query(name, PERMISSION, time.time() - started,
+                                    attempt + 1, http_codes, note=msg)
                 return result
 
             soft_fail = False
@@ -136,29 +159,50 @@ def run_gql(api_endpoint, access_token, query, variables=None, retries=4, requir
             if soft_fail and attempt < retries - 1:
                 msg = errors[0].get("message") if errors else "null data"
                 wait_s = 5 * (attempt + 1)
-                print(f"    [Soft failure: {msg}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
+                logger.warn(f"    [Soft failure: {msg}] {name}: retrying in {wait_s}s "
+                            f"(attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
                 continue
+
+            status = EMPTY if (data is None or data == {}) else OK
+            logger.record_query(name, status, time.time() - started,
+                                attempt + 1, http_codes)
             return result
         except urllib.error.HTTPError as e:
             last_err = e
+            http_codes.append(e.code)
             if e.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
                 wait_s = 5 * (attempt + 1)
-                print(f"    [HTTP {e.code}] Waiting {wait_s}s before retry (attempt {attempt + 1}/{retries})...")
+                logger.warn(f"    [HTTP {e.code}] {name}: waiting {wait_s}s before retry "
+                            f"(attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
                 continue
             if attempt < retries - 1:
                 time.sleep(3)
                 continue
-            print(f"    [!] Query failed after {retries} attempts (HTTP {e.code}); continuing with empty result.")
+            logger.record_query(name, FAILED, time.time() - started, attempt + 1,
+                                http_codes, note=f"HTTP {e.code}")
             return {"data": {}}
         except Exception as e:
             last_err = e
             if attempt < retries - 1:
                 wait_s = 3 * (attempt + 1)
-                print(f"    [Error: {e}] Retrying in {wait_s}s (attempt {attempt + 1}/{retries})...")
+                logger.warn(f"    [Error: {type(e).__name__}: {e}] {name}: retrying in "
+                            f"{wait_s}s (attempt {attempt + 1}/{retries})...")
                 time.sleep(wait_s)
                 continue
+            # Retries exhausted on a network/timeout error (URLError, socket
+            # timeout, JSON decode). Return an empty result instead of falling
+            # through to None, which downstream .get("data") would crash on —
+            # the classic large-tenant "slow query -> timeout -> traceback".
+            logger.record_query(name, FAILED, time.time() - started, attempt + 1,
+                                http_codes, note=f"{type(e).__name__}: {e}")
+            return {"data": {}}
+
+    # Loop exhausted without returning (shouldn't happen, but never return None).
+    logger.record_query(name, FAILED, time.time() - started, retries, http_codes,
+                        note=f"exhausted retries; last error: {last_err}")
+    return {"data": {}}
 def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     """Executes all Wiz API GraphQL queries (Q1-Q5, K8s, Controls, Preview Hub, Roadmap) and compiles telemetry payload."""
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -324,7 +368,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res1 = run_gql(api_endpoint, access_token, q1)
+    res1 = run_gql(api_endpoint, access_token, q1, name="Q1_settings_workloads_endpoints")
 
     # 2. Q2: Issues & Trends & MTTR & Avg Age
     print("[2/5] Running Q2 (Issues, MTTR, Avg Age, SHI)...")
@@ -372,7 +416,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       ) { dataPoints { time criticalSeverityValue highSeverityValue } }
     }
     """
-    res2 = run_gql(api_endpoint, access_token, q2, {"startDate": start_30d, "startDate90d": start_90d, "endDate": end_str})
+    res2 = run_gql(api_endpoint, access_token, q2, {"startDate": start_30d, "startDate90d": start_90d, "endDate": end_str}, name="Q2_issues_mttr_shi")
 
     # Discover active primary license for billable workload metrics
     print("\n[*] Discovering active tenant license...")
@@ -385,7 +429,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res_lic = run_gql(api_endpoint, access_token, q_lic)
+    res_lic = run_gql(api_endpoint, access_token, q_lic, name="license_discovery")
     licenses = (res_lic.get("data", {}).get("viewerV2", {}).get("tenant", {}) or {}).get("licenses", [])
     active_licenses = [l for l in licenses if l.get("status") == "ACTIVE"]
     primary_lic_id = None
@@ -515,7 +559,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         "scoreStart": start_90d,
         "scoreEnd": end_str,
         "cliStart": start_30d
-    })
+    }, name="Q3_users_accounts_connectors_k8s")
 
     # Execute WorkloadLicenseUsage if primary license is found
     res_lic_usage = None
@@ -571,7 +615,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
             "startAt": start_30d,
             "endAt": end_str,
             "license": primary_lic_id
-        })
+        }, name="workload_license_usage")
 
     # 4. Q4: Technologies & Active Service Accounts & AI Inventory
     print("[4/5] Running Q4-combined (Technologies, Accounts, AI Inventory)...")
@@ -716,7 +760,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res4 = run_gql(api_endpoint, access_token, q4)
+    res4 = run_gql(api_endpoint, access_token, q4, name="Q4_technologies_ai_inventory")
 
     print("[4.5/5] Running Q4c (Potential Integrations Service Account Timeline Dates)...")
     q4c = """
@@ -755,7 +799,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res4c = run_gql(api_endpoint, access_token, q4c, {"after": None})
+    res4c = run_gql(api_endpoint, access_token, q4c, {"after": None}, name="Q4c_service_account_dates")
 
     # 5. Q5: Data Scans & Red Agent Modules
     print("[5/5] Running Q5 (Data Scans, Red Agent Modules)...")
@@ -1012,20 +1056,21 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
 
     # Run core scalars first, then audit logs (1 attempt), then accurate data-scan queries, then SHI breakdown, then workload scans
     res5_core = run_gql(api_endpoint, access_token, q5_core,
-                        required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"])
-    res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1)
-    
-    res5_ds_b1 = run_gql(api_endpoint, access_token, q5_ds_b1)
+                        required_keys=["shi_open_crit", "integrationsList", "customFrameworksAll"],
+                        name="Q5_core_scalars")
+    res5_audit = run_gql(api_endpoint, access_token, q5_audit, retries=1, name="Q5_audit_logs")
+
+    res5_ds_b1 = run_gql(api_endpoint, access_token, q5_ds_b1, name="Q5_datascan_batch1_bucket_db_ai")
     time.sleep(1.5)
-    res5_ds_b2 = run_gql(api_endpoint, access_token, q5_ds_b2)
+    res5_ds_b2 = run_gql(api_endpoint, access_token, q5_ds_b2, name="Q5_datascan_batch2_vdrv_fss_srvless")
     time.sleep(1.5)
-    res5_shi = run_gql(api_endpoint, access_token, q5_shi_breakdown)
+    res5_shi = run_gql(api_endpoint, access_token, q5_shi_breakdown, name="Q5_shi_by_deployment_type")
     time.sleep(1.5)
-    res5_non_os = run_gql(api_endpoint, access_token, q5_non_os)
+    res5_non_os = run_gql(api_endpoint, access_token, q5_non_os, name="Q5_non_os_disk_scans")
     time.sleep(1.5)
-    res5_rci = run_gql(api_endpoint, access_token, q5_rci)
+    res5_rci = run_gql(api_endpoint, access_token, q5_rci, name="Q5_registry_container_image_scans")
     time.sleep(1.5)
-    res5_vmi = run_gql(api_endpoint, access_token, q5_vmi)
+    res5_vmi = run_gql(api_endpoint, access_token, q5_vmi, name="Q5_vm_image_scans")
 
     d1 = res5_ds_b1.get("data", {}) or {}
     d2 = res5_ds_b2.get("data", {}) or {}
@@ -1080,8 +1125,12 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
 
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
     _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
+    from run_logger import get_logger
+    _logger = get_logger()
     if ds_capped:
-        print(f"    [!] DATA-SCAN 10k CAP HIT on: {', '.join(ds_capped)} — DS totals are a FLOOR (undercount). "
+        for _cap in ds_capped:
+            _logger.cap_hit(f"data-scan {_cap}")
+        _logger.warn(f"    [!] DATA-SCAN 10k CAP HIT on: {', '.join(ds_capped)} — DS totals are a FLOOR (undercount). "
               f"That type exceeds 10,000 scans; sub-partition it (e.g. by cloud provider/subscription) for an exact count.")
     print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans (per-type summed): {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")
 
@@ -1119,7 +1168,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }) { totalCount }
     }
     """
-    res_k8s_cov = run_gql(api_endpoint, access_token, q_k8s_cov)
+    res_k8s_cov = run_gql(api_endpoint, access_token, q_k8s_cov, name="k8s_coverage_ladder")
 
     print("[*] Running Top Controls by Issue Count query (Slide 11 Critical & High)...")
     q_controls = """
@@ -1193,7 +1242,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res_controls = run_gql(api_endpoint, access_token, q_controls)
+    res_controls = run_gql(api_endpoint, access_token, q_controls, name="top_controls_by_issue_count")
 
     print("[*] Running Preview & Migration Hub query...")
     q_preview = """
@@ -1216,7 +1265,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res_preview = run_gql(api_endpoint, access_token, q_preview)
+    res_preview = run_gql(api_endpoint, access_token, q_preview, name="preview_migration_hub")
     preview_items = res_preview.get("data", {}).get("previewAndMigrationHubItems", [])
     preview_vars, preview_links = transform_preview_hub(preview_items)
     print(f"    Compiled {len(preview_vars)} preview variables across {len(preview_items)} Preview Hub items.")
@@ -1253,7 +1302,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
             "field": "PRIORITY",
             "direction": "DESC"
         }
-    })
+    }, name="tracked_roadmap_items")
     roadmap_nodes = res_roadmap.get("data", {}).get("trackedRoadmapItems", {}).get("nodes", [])
     roadmap_total = res_roadmap.get("data", {}).get("trackedRoadmapItems", {}).get("totalCount", len(roadmap_nodes))
     preview_vars["ROADMAP_TRACKER"] = format_tracked_roadmap_items(roadmap_nodes, limit=20)
@@ -1344,9 +1393,20 @@ def main():
             })
         print(f"    Loaded {len(merged)} variables from CSV; generated {len(reqs)} replacement requests.")
     else:
-        print("[*] Authenticating with Wiz API...")
-        access_token, api_endpoint = get_wiz_access_token()
-        combined_payload, preview_vars, preview_items, _ = fetch_live_tenant_telemetry(access_token, api_endpoint)
+        log_path = default_log_path()
+        logger = init_logger(log_path)
+        logger.info(f"[*] Logging this run to: {log_path}")
+        logger.info("[*] Authenticating with Wiz API...")
+        try:
+            access_token, api_endpoint = get_wiz_access_token()
+        except Exception as e:
+            logger.exception("Authentication failed", e)
+            raise
+        try:
+            combined_payload, preview_vars, preview_items, _ = fetch_live_tenant_telemetry(access_token, api_endpoint)
+        except Exception as e:
+            logger.exception("Telemetry fetch crashed", e)
+            raise
         customer_name = args.customer or os.environ.get("CUSTOMER_NAME") or "Customer"
 
         print("\n[*] Processing API payload & generating variable replacements...")
@@ -1544,4 +1604,18 @@ def main():
     return new_deck_id, new_deck_url, merged
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as _e:
+        # Log the crash (with traceback) to the run log so a customer can send
+        # one file back for diagnosis, then re-raise for the normal exit code.
+        _lg = get_logger()
+        _lg.exception("Run crashed", _e)
+        raise
+    finally:
+        # Always emit the RUN DIAGNOSTICS summary + JSON sidecar for live runs
+        # (those set a log path); no-op for offline CSV/template modes.
+        _lg = get_logger()
+        if _lg.log_path or _lg.events:
+            _lg.write_summary()
+            _lg.close()

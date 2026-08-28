@@ -82,3 +82,26 @@ python3 scripts/run_health_assessment.py --customer "Acme Corporation" -o health
   * Complete export of all tenant variables categorized by Category, Token (`{{VAR}}`), Metric Name, Value, Slide, and Description.
 * **Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
   * Annotated template for offline data collection if required.
+* **Run log + diagnostics** (`output/logs/wiz_health_run_<timestamp>.log` and `.diagnostics.json`):
+  * Every live run tees its console output to a timestamped log file and records a per-query
+    outcome (duration, attempts, HTTP codes, status), then prints a **RUN DIAGNOSTICS** block
+    flagging any query that came back empty, hit a permission wall, hit the 10k graphSearch
+    cap, or ran slow. Logs are under `output/` (gitignored) and may contain tenant data.
+
+---
+
+## Troubleshooting large accounts
+
+Large tenants can hit slow queries, timeouts, rate limits, and the 10k graphSearch cap. If
+numbers look off, read the **RUN DIAGNOSTICS** summary at the end of the run: `FAILED`/`EMPTY`
+queries name exactly which metric is blank, `10k CAP hit` means that count is an undercount,
+and `PERMISSION` (e.g. `Q5_audit_logs`) is usually expected with a `read:all` service account.
+If a query times out on a large tenant, raise the per-query timeout and re-run:
+
+```bash
+export WIZ_QUERY_TIMEOUT=300      # seconds (default 120); Windows: set WIZ_QUERY_TIMEOUT=300
+python3 scripts/generate_deck.py --format csv
+```
+
+Share `output/logs/wiz_health_run_<timestamp>.log` (+ the `.diagnostics.json` sidecar) with
+your Wiz TAM for diagnosis.

@@ -140,3 +140,32 @@ python3 scripts/run_health_assessment.py -o health_report.md
   * Contains workload inventory, scanning coverage percentages, Kubernetes maturity ladder, Top Controls by risk count, and preview feature recommendations.
 * **Customer Intake Template** (`templates/wiz_customer_metrics_intake_template.csv`):
   * Annotated template for offline data collection if required.
+* **Run log + diagnostics** (`output/logs/wiz_health_run_<timestamp>.log` and `.diagnostics.json`):
+  * Every live run tees its console output to a timestamped log file and records a
+    per-query outcome (duration, attempts, HTTP codes, status). At the end it prints a
+    **RUN DIAGNOSTICS** block that flags any query that came back empty, hit a permission
+    wall, hit the 10k graphSearch cap, or ran slow. Logs live under `output/` (gitignored)
+    and may contain tenant data — share the file with your Wiz TAM only.
+
+---
+
+## 5. Troubleshooting large accounts
+
+Large tenants can hit slow queries, timeouts, rate limits, and the 10k graphSearch cap.
+When numbers look off:
+
+1. **Read the RUN DIAGNOSTICS summary** at the end of the run (also in the log file).
+   * `FAILED` queries → those metrics are blank/0. The named query tells you which slide.
+   * `EMPTY` → the query returned no data; verify the affected cells.
+   * `10k CAP hit` → that count is a floor (undercount); sub-partition the type (by cloud
+     provider/subscription) for an exact figure.
+   * `PERMISSION` (e.g. `Q5_audit_logs`) is usually expected with a `read:all`-only service
+     account and is safe to ignore.
+2. **If a query FAILED with a timeout on a large tenant, raise the per-query timeout** and
+   re-run (default is 120s):
+   ```bash
+   export WIZ_QUERY_TIMEOUT=300      # seconds; Windows: set WIZ_QUERY_TIMEOUT=300
+   python3 scripts/generate_deck.py --format csv
+   ```
+3. **Send Lindsey the log** (`output/logs/wiz_health_run_<timestamp>.log`) + the
+   `.diagnostics.json` sidecar if you can't resolve it — it has the exact per-query trail.
