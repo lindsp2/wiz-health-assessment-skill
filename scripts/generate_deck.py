@@ -884,13 +884,17 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     }
     """
 
-    # --- Data-scan coverage (PER-TYPE scoped queries, summed) ---
-    # graphSearch caps totalCount at 10,000 (sets maxCountReached). To avoid a large
-    # tenant silently capping a *combined* batch and undercounting, each DSPM resource
-    # type is queried on its OWN (total/failed/skipped), then summed. maxCountReached
-    # is checked per query so any remaining cap (a single type > 10k) is surfaced
-    # loudly instead of silently truncating. DATA_WAREHOUSE is not a valid graphSearch
-    # type, so DS_DW has no query and stays 0 (warehouses fold into DATABASE).
+    # --- Data-scan coverage (PER-TYPE, via the UNCAPPED resourceScanResultsStatusRatio) ---
+    # graphSearch.totalCount hard-caps at 10,000, so the old per-type graphSearch silently
+    # undercounted a large tenant's data-scan-by-type counts on slide 5 (any single type
+    # > 10k capped). resourceScanResultsStatusRatio is a true aggregate (NOT capped) and is
+    # the SAME API the overall workload/data ratios use, so the by-type rows now stay accurate
+    # above 10k AND reconcile with the overall totals. Each DSPM resource type is queried on
+    # its own with a status filter (total / failed / skipped); success + coverage are derived
+    # downstream. DATA_WAREHOUSE folds into DATABASE (DS_DW stays 0).
+    # NOTE: this changes the DS-by-type population from "resources with a SCANNED 'data scan'
+    # relationship" to "resources with a data-module scan result" -- numbers shift slightly on
+    # non-capping tenants but are correct and uncapped on large ones (validated 2026-08-28).
     DS_TYPES = [
         ("bucket", "BUCKET"),
         ("db", "DATABASE"),
@@ -900,23 +904,19 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         ("srvless", "SERVERLESS"),
     ]
 
-    def _ds_search(wiz_type, status=None):
-        where = 'name: { CONTAINS: ["data scan"] }'
+    def _ds_ratio(wiz_type, status=None):
+        f = 'modules: { data: { equals: true } }, resource: { type: { equals: ["%s"] } }' % wiz_type
         if status:
-            where += ', status: { EQUALS: ["%s"] }' % status
-        return (
-            'graphSearch(projectId: "*", quick: true, query: { '
-            'type: [%s] relationships: [{ type: [{ type: SCANNED, reverse: true }] '
-            'with: { type: [SECURITY_TOOL_SCAN], select: true, where: { %s } } }] '
-            'select: true }) { totalCount maxCountReached }' % (wiz_type, where)
-        )
+            f += ', status: { equals: [%s] }' % status
+        return ('resourceScanResultsStatusRatio(filterBy: { %s }) '
+                '{ successResourceCount totalResourceCount }' % f)
 
     def _ds_batch_query(batch_types):
         body = ""
         for alias, wtype in batch_types:
-            body += f"      ds_{alias}_total: {_ds_search(wtype)}\n"
-            body += f'      ds_{alias}_failed: {_ds_search(wtype, "ScanStatusError")}\n'
-            body += f'      ds_{alias}_skipped: {_ds_search(wtype, "ScanStatusSkipped")}\n'
+            body += f"      ds_{alias}_total: {_ds_ratio(wtype)}\n"
+            body += f'      ds_{alias}_failed: {_ds_ratio(wtype, "FAILED")}\n'
+            body += f'      ds_{alias}_skipped: {_ds_ratio(wtype, "SKIPPED")}\n'
         return "query TamApiDeltaDataScans {\n" + body + "    }\n"
 
     q5_ds_b1 = _ds_batch_query(DS_TYPES[:3])   # BUCKET, DATABASE, AI_DATASET
@@ -1093,22 +1093,19 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     d_rci = res5_rci.get("data", {})
     d_vmi = res5_vmi.get("data", {})
 
-    # Sum the per-type counts (each query dodges the 10k cap on its own type) and
-    # record any type/status that STILL hit the cap so it can be surfaced, not hidden.
+    # Sum the per-type resource counts. resourceScanResultsStatusRatio is an uncapped
+    # aggregate, so (unlike the old graphSearch) no per-type 10k cap can apply here.
     ds_tot_sum = ds_fail_sum = ds_skip_sum = 0
-    ds_capped = []
+    ds_capped = []  # statusRatio is uncapped; kept for interface parity with the warning below
     ds_type_totals = {}
     for _alias, _wtype in DS_TYPES:
         nt = ds_data.get(f"ds_{_alias}_total") or {}
         nf = ds_data.get(f"ds_{_alias}_failed") or {}
         ns = ds_data.get(f"ds_{_alias}_skipped") or {}
-        ds_tot_sum += nt.get("totalCount") or 0
-        ds_fail_sum += nf.get("totalCount") or 0
-        ds_skip_sum += ns.get("totalCount") or 0
-        ds_type_totals[_alias] = nt.get("totalCount") or 0
-        for _lbl, _node in (("total", nt), ("failed", nf), ("skipped", ns)):
-            if _node.get("maxCountReached"):
-                ds_capped.append(f"{_wtype}/{_lbl}")
+        ds_tot_sum += nt.get("totalResourceCount") or 0
+        ds_fail_sum += nf.get("totalResourceCount") or 0
+        ds_skip_sum += ns.get("totalResourceCount") or 0
+        ds_type_totals[_alias] = nt.get("totalResourceCount") or 0
 
     res5 = {"data": {}, "errors": []}
     res5["data"].update(res5_core.get("data") or {})
@@ -1138,11 +1135,14 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
 
     # Detect the 10k graphSearch cap on the by-resource-type WORKLOAD scan counts
     # (non-OS disks, registry container images, VM images). These use graphSearch,
-    # which hard-caps totalCount at 10,000, so a large tenant silently undercounts
-    # the slide-5 by-type breakdown. Surface exactly which alias capped.
+    # which hard-caps totalCount at 10,000. The processor reconstructs each type's
+    # TOTAL from success+failed+skipped, so a capped `_total` alias is harmless (the
+    # sum corrects it) -- we only flag a capped STATUS SLICE, because THAT is what
+    # makes the reconstructed total an undercount. Effective ceiling is therefore
+    # ~10k *per status* (~30k total) before the by-type count is a floor.
     wl_capped = []
     for _grp, _dat in (("non_os", d_non_os), ("rci", d_rci), ("vmi", d_vmi)):
-        for _lbl in ("total", "success", "failed", "skipped"):
+        for _lbl in ("success", "failed", "skipped"):
             _node = (_dat or {}).get(f"{_grp}_{_lbl}") or {}
             if _node.get("maxCountReached"):
                 wl_capped.append(f"{_grp}/{_lbl}")
