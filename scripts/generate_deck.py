@@ -942,28 +942,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, dataSource_name: { EQUALS: ["Wiz Workload Scanner"] } } }
         }]
       }) { totalCount maxCountReached }
       non_os_success: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
       }) { totalCount maxCountReached }
       non_os_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusError"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
       }) { totalCount maxCountReached }
       non_os_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
       }) { totalCount maxCountReached }
     }
@@ -976,28 +976,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] } } }
         }]
       }) { totalCount maxCountReached }
       rci_success: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
       }) { totalCount maxCountReached }
       rci_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
       }) { totalCount maxCountReached }
       rci_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
       }) { totalCount maxCountReached }
     }
@@ -1010,28 +1010,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] } } }
         }]
       }) { totalCount maxCountReached }
       vmi_success: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
       }) { totalCount maxCountReached }
       vmi_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
       }) { totalCount maxCountReached }
       vmi_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
-          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
+          with: { type: [SECURITY_TOOL_SCAN], select: true, where: { dataSource_name: { EQUALS: ["Wiz Workload Scanner"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
       }) { totalCount maxCountReached }
     }
