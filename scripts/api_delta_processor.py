@@ -580,6 +580,10 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         if wos is not None:
             out["CON_WOS"] = str(wos)
             out["WIZOS_WORKLOAD_COUNT"] = str(wos)
+        # Total compute workloads -- denominator for WizOS adoption % (slide 4 Cloud Advanced).
+        cw_total = last_dp.get("computeWorkloadCount") if last_dp.get("computeWorkloadCount") is not None else bwt.get("averageComputeWorkloadCount")
+        if cw_total is not None:
+            out["COMPUTE_WL_TOTAL"] = str(int(cw_total))
         if (bwt.get("greenAgentWorkloadDetails") or {}).get("runCount") is not None:
             out["GREEN_AGENT_RUNS"] = str(bwt["greenAgentWorkloadDetails"]["runCount"])
         
@@ -838,17 +842,6 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["SHI_KC"] = fmt_r(shi_k8s if shi_k8s is not None else 0)
     out["SHI_VCS"] = fmt_r(shi_vcs if shi_vcs is not None else 0)
     out["SHI_B"] = fmt_r(shi_brk if shi_brk is not None else 0)
-
-    # --- Container Lifecycle Percentages ---
-    out["CL_CP"] = "100" if lc.get("CLOUD", 0) > 0 else "0"
-    out["CL_DP"] = "0"
-    out["CL_NRVP"] = "0"
-    out["CL_WOP"] = "0"
-    out["CL_UVMP"] = "0"
-    out["CL_ASMP"] = "0"
-    out["CL_REDA"] = "0"
-    out["CL_SUP"] = "0"
-    out["L_CL_PCT"] = f"{out.get('CL_CP', '100')}%"
 
     # --- Licenses (Defend & Code) ---
     all_lics = t_info.get("licenses") or []
@@ -1370,6 +1363,63 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
         out["AI_IF"] = fmt_r(sum_tfc(q_ai["aiImpactFindings"]))
     elif not out.get("AI_IF"):
         out["AI_IF"] = "0"
+
+    # --- Slide 4: "Cloud Advanced" adoption breakdown ----------------------------
+    # Model (confirmed with owner 2026-08-28): coverage % where a real coverage metric
+    # exists, else enabled->100 / disabled->0 for pure feature toggles. Header L_CL_PCT
+    # is the average of the eight items. Computed here (after all dependencies) rather
+    # than the old hardcoded 0 stubs. UVM and SaaS Users use a best-effort mapping
+    # (flagged for review) since there is no single canonical tenant signal for them.
+    def _pct_int(s):
+        try:
+            return max(0, min(100, int(float(str(s).replace("%", "").strip()))))
+        except (TypeError, ValueError):
+            return None
+
+    # Compute = workload scan success %; Data = DSPM coverage %
+    cl_cp = _pct_int(out.get("WS_P"))
+    cl_dp = _pct_int(out.get("DS_P"))
+
+    # Non-OS / Registry / VM image = combined coverage across the three scan types
+    _nrv_succ = (non_succ or 0) + (rci_succ or 0) + (vmi_succ or 0)
+    _nrv_tot = (non_t or 0) + (rci_t or 0) + (vmi_t or 0)
+    cl_nrvp = int(math.floor(_nrv_succ / _nrv_tot * 100)) if _nrv_tot > 0 else None
+
+    # WizOS adoption = wizOS workloads / total compute workloads
+    try:
+        _wos = int(out.get("WIZOS_WORKLOAD_COUNT", "0") or 0)
+        _cwt = int(out.get("COMPUTE_WL_TOTAL", "0") or 0)
+        cl_wop = int(math.floor(_wos / _cwt * 100)) if _cwt > 0 else (0 if _wos == 0 else None)
+    except (TypeError, ValueError):
+        cl_wop = None
+
+    # Advanced ASM / Red Agent = enabled -> 100 else 0 (pure feature toggles)
+    cl_asmp = 100 if (adv.get("isEnabled") is True) else 0
+    cl_reda = 100 if (red_agent_on is True) else 0
+
+    # UVM (best-effort, REVIEW): fraction of vulnerability-assessment detection toggles on
+    _uvm_flags = [
+        vas.get("latestKernelVersionVulnerabilitiesDetectionEnabled"),
+        vas.get("osPackageManagedCodeLibrariesVulnerabilitiesDetectionEnabled"),
+        vas.get("windowsManagedVulnerabilitiesDetectionEnabled"),
+        vas.get("goStandardLibraryVulnerabilitiesEnabled"),
+        vas.get("pipInstalledPythonLibrariesVulnerabilitiesEnabled"),
+        vas.get("npmInstalledJavascriptLibrariesVulnerabilitiesEnabled"),
+    ]
+    _uvm_known = [b for b in _uvm_flags if b is not None]
+    cl_uvmp = int(math.floor(sum(1 for b in _uvm_known if b) / len(_uvm_known) * 100)) if _uvm_known else None
+
+    # SaaS Users (best-effort, REVIEW): SaaS security scanner enabled -> 100 else 0
+    cl_sup = 100 if str(out.get("ASM_SAAS", "")).strip().lower() in ("enabled", "yes", "true") else 0
+
+    _cl_map = {
+        "CL_CP": cl_cp, "CL_DP": cl_dp, "CL_NRVP": cl_nrvp, "CL_WOP": cl_wop,
+        "CL_UVMP": cl_uvmp, "CL_ASMP": cl_asmp, "CL_REDA": cl_reda, "CL_SUP": cl_sup,
+    }
+    _cl_present = [v for v in _cl_map.values() if v is not None]
+    for _k, _v in _cl_map.items():
+        out[_k] = str(_v if _v is not None else 0)
+    out["L_CL_PCT"] = f"{int(round(sum(_cl_present) / len(_cl_present)))}%" if _cl_present else "0%"
 
     return out
 
