@@ -686,6 +686,19 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       ) {
         nodes { aggregateCount entities { id name type properties } }
       }
+    }
+    """
+    res4 = run_gql(api_endpoint, access_token, q4, name="Q4_technologies_service_accounts")
+
+    # 4b. AI Inventory (slide 3) — deliberately split OUT of the heavy Q4 technology/
+    # service-account graph traversal above. On a large tenant that traversal can exceed
+    # the query timeout and return empty; when AI inventory shared that request it was
+    # blanked along with it (observed: slide 3 AI Inventory empty on a large customer).
+    # These AI fields are cheap first:0 aggregate counts, so isolating them keeps slide 3
+    # populated even when the technology traversal is slow or times out.
+    print("[4b/5] Running Q4-AI (AI Inventory for slide 3)...")
+    q4_ai = """
+    query TamApiDeltaAiInventory {
       aiSecFindings: aiSecurityFindingsGroupedByValues(first: 500, groupBy: {fields: [TYPE]}) {
         nodes { type analytics { totalFindingCount } }
         pageInfo { hasNextPage }
@@ -760,7 +773,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       }
     }
     """
-    res4 = run_gql(api_endpoint, access_token, q4, name="Q4_technologies_ai_inventory")
+    res4_ai = run_gql(api_endpoint, access_token, q4_ai, name="Q4_ai_inventory")
 
     print("[4.5/5] Running Q4c (Potential Integrations Service Account Timeline Dates)...")
     q4c = """
@@ -931,28 +944,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       non_os_success: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       non_os_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       non_os_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [VOLUME, VIRTUAL_MACHINE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { scannedResourceType: { EQUALS: ["SecurityToolScanScannedResourceTypeNonOSDisk"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
     }
     """
 
@@ -965,28 +978,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       rci_success: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       rci_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       rci_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [CONTAINER_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
     }
     """
 
@@ -999,28 +1012,28 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       vmi_success: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSuccess"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       vmi_failed: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusError"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
       vmi_skipped: graphSearch(projectId: "*", quick: true, query: {
         type: [VIRTUAL_MACHINE_IMAGE]
         relationships: [{
           type: [{ type: SCANNED, reverse: true }]
           with: { type: [SECURITY_TOOL_SCAN], select: true, where: { name: { CONTAINS: ["Workload scan"] }, status: { EQUALS: ["ScanStatusSkipped"] } } }
         }]
-      }) { totalCount }
+      }) { totalCount maxCountReached }
     }
     """
 
@@ -1123,6 +1136,17 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     # Granular SHI by resource bucket
     res5["data"].update(d_shi)
 
+    # Detect the 10k graphSearch cap on the by-resource-type WORKLOAD scan counts
+    # (non-OS disks, registry container images, VM images). These use graphSearch,
+    # which hard-caps totalCount at 10,000, so a large tenant silently undercounts
+    # the slide-5 by-type breakdown. Surface exactly which alias capped.
+    wl_capped = []
+    for _grp, _dat in (("non_os", d_non_os), ("rci", d_rci), ("vmi", d_vmi)):
+        for _lbl in ("total", "success", "failed", "skipped"):
+            _node = (_dat or {}).get(f"{_grp}_{_lbl}") or {}
+            if _node.get("maxCountReached"):
+                wl_capped.append(f"{_grp}/{_lbl}")
+
     _core_ok = bool((res5_core.get("data") or {}).get("shi_open_crit"))
     _audit_ok = bool((res5_audit.get("data") or {}).get("browserExtensionAudit"))
     from run_logger import get_logger
@@ -1132,6 +1156,11 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
             _logger.cap_hit(f"data-scan {_cap}")
         _logger.warn(f"    [!] DATA-SCAN 10k CAP HIT on: {', '.join(ds_capped)} — DS totals are a FLOOR (undercount). "
               f"That type exceeds 10,000 scans; sub-partition it (e.g. by cloud provider/subscription) for an exact count.")
+    if wl_capped:
+        for _cap in wl_capped:
+            _logger.cap_hit(f"workload-scan {_cap}")
+        _logger.warn(f"    [!] WORKLOAD-SCAN 10k CAP HIT on: {', '.join(wl_capped)} — the slide-5 by-type "
+              f"(non-OS / registry image / VM image) counts are a FLOOR (undercount); that type exceeds 10,000.")
     print(f"    Q5 core metrics: {'OK' if _core_ok else 'MISSING'}; audit log access: {'OK' if _audit_ok else 'NO PERMISSION'}; accurate data scans (per-type summed): {ds_tot_sum:,} total, {ds_fail_sum:,} failed, {ds_skip_sum:,} skipped")
 
     print("[*] Running K8s Coverage Ladder & Gaps query (canonical property counts)...")
@@ -1310,7 +1339,7 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
     print(f"    Compiled ROADMAP_TRACKER with top {len(roadmap_nodes[:20])} of {roadmap_total} tracked roadmap items.")
 
     # 2. Extract and compile telemetry
-    all_responses = [res1, res2, res3, res4, res4c, res5, res_k8s_cov, res_controls]
+    all_responses = [res1, res2, res3, res4, res4_ai, res4c, res5, res_k8s_cov, res_controls]
     if res_lic:
         all_responses.append(res_lic)
     if res_lic_usage:
