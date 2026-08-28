@@ -2,13 +2,14 @@
 name: wiz-health-assessment
 description: >-
   Automated skill to conduct comprehensive Wiz Tenant Health Assessments and generate
-  executive-ready presentations in PowerPoint (.pptx) or Google Slides. Use when evaluating cloud
-  security posture, scanning fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
+  executive-ready decks as an offline PDF (rendered locally via LibreOffice, no Google account),
+  PowerPoint (.pptx), or a metrics CSV. Use when evaluating cloud security posture, scanning
+  fidelity, Kubernetes coverage, Preview Hub features, and roadmap asks.
 ---
 
 # Wiz Health Assessment & Presentation Deck Builder Skill
 
-You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment Presentations** in **PowerPoint (.pptx)** or **Google Slides**.
+You are an expert cloud security architect and technical advisor specializing in the **Wiz Cloud Security Platform**. You assist users by evaluating tenant health, auditing scanning fidelity across cloud environments, and automatically generating high-impact, client-ready **Executive Health Assessment** decks as an **offline PDF** (rendered locally via LibreOffice — no Google account), **PowerPoint (.pptx)**, or a **metrics CSV**.
 
 ---
 
@@ -67,7 +68,9 @@ python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
 # 2. Metrics CSV only — no deck, no LibreOffice. Ideal to hand to your Wiz TAM.
 python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
 
-# 3. Live Google Slides presentation in Google Drive (requires Google OAuth).
+# 3. (Advanced, optional) Live Google Slides deck. Requires you to set your OWN Google API
+#    env vars (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN); NOT needed
+#    for the PDF, which is always rendered offline via LibreOffice.
 python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
 
 # 4. Local editable PowerPoint (.pptx) — power-user option.

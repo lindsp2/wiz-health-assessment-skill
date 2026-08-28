@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Wiz & Google Cloud Credentials Setup Wizard
-============================================
+Wiz Credentials Setup Wizard
+============================
 Interactive setup tool to:
 1. Guide you through entering your Wiz Service Account credentials locally.
 2. Verify live connectivity to the Wiz GraphQL API.
-3. Configure Google Slides / Drive API credentials (optional).
-4. Generate a sanitized, local .env file.
+3. Generate a sanitized, local .env file.
+
+The PDF deck is rendered offline via LibreOffice - no Google account or OAuth is
+required, so this wizard does not ask for any Google credentials.
 """
 
 import getpass
@@ -124,7 +126,9 @@ def main():
         print("[!] Connection test failed. Please verify your credentials and datacenter.")
         sys.exit(1)
 
-    # Read any existing Google credentials from .env to preserve them if present
+    # The PDF deck is rendered offline via LibreOffice, so no Google/OAuth config is
+    # written. Only if the user has ALREADY set up the advanced --format slides path
+    # (Google creds present in an existing .env) do we preserve those lines verbatim.
     env_path = REPO_DIR / ".env"
     existing_vars = {}
     if env_path.is_file():
@@ -134,12 +138,6 @@ def main():
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
                     existing_vars[k.strip()] = v.strip().strip("\"'")
-
-    google_client_id = existing_vars.get("GOOGLE_CLIENT_ID", "")
-    google_client_secret = existing_vars.get("GOOGLE_CLIENT_SECRET", "")
-    google_refresh_token = existing_vars.get("GOOGLE_REFRESH_TOKEN", "")
-    google_folder_id = existing_vars.get("GOOGLE_FOLDER_ID", "11OSM169RkTJIbpj7l4lFiwsrU6lgk5FJ")
-    template_id = existing_vars.get("QBR_TEMPLATE_ID", "1ga4sflsBPZS2lsXi6k6fUY1jU5dOrqQ9bQ1JEp3B5GM")
 
     # Write .env file
     env_content = f"""# ==============================================================================
@@ -156,19 +154,24 @@ WIZ_DATACENTER={datacenter}
 WIZ_API_ENDPOINT={api_endpoint}
 WIZ_CLIENT_ID={client_id}
 WIZ_CLIENT_SECRET={client_secret}
-
-# Presentation Settings
-GOOGLE_CLIENT_ID={google_client_id}
-GOOGLE_CLIENT_SECRET={google_client_secret}
-GOOGLE_REFRESH_TOKEN={google_refresh_token}
-GOOGLE_FOLDER_ID={google_folder_id}
-QBR_TEMPLATE_ID={template_id}
 """
+
+    # Preserve pre-existing Google credentials only if the user already had them
+    # (advanced --format slides users). We never create empty Google placeholders.
+    google_keys = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN",
+                   "GOOGLE_FOLDER_ID", "QBR_TEMPLATE_ID"]
+    google_present = {k: existing_vars[k] for k in google_keys if existing_vars.get(k)}
+    if google_present:
+        env_content += "\n# Advanced (optional): Google Slides output (--format slides) - preserved from prior .env\n"
+        for k in google_keys:
+            if k in google_present:
+                env_content += f"{k}={google_present[k]}\n"
 
     env_path.write_text(env_content, encoding="utf-8")
     print(f"\n[✓] Successfully saved configuration to {env_path}")
     print("\nYou are ready to run your Health Assessment:")
-    print(f"  {python_command()} scripts/generate_deck.py --format pdf --customer \"{customer_name}\"")
+    print(f"  {python_command()} scripts/generate_deck.py --format csv --customer \"{customer_name}\"")
+    print("  (add --format pdf for the offline LibreOffice-rendered executive deck)")
 
 if __name__ == "__main__":
     main()

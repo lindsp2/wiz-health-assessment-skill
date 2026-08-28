@@ -63,31 +63,36 @@ Once `.env` is configured, continue to **Step 2**.
 Now that configuration is complete, ask **one** question before running:
 
 > *"Would you like a polished **PDF deck** as well? By default I'll generate the **metrics CSV**
-> (great to review with your Wiz TAM). The PDF is a board-ready executive presentation but needs
-> a one-time **LibreOffice** install (free, offline, no account)."*
+> (great to review with your Wiz TAM). The PDF is a board-ready executive presentation. It's
+> rendered **locally and offline via LibreOffice** — no Google account or sign-in needed. If
+> LibreOffice isn't installed yet, I'll install it for you (a one-time, free system package)."*
 
 * **If the user does NOT want the PDF (or just says "run it"):** generate the CSV only.
   ```bash
   python3 scripts/generate_deck.py --format csv
   ```
-* **If the user WANTS the PDF:** confirm LibreOffice is available:
+* **If the user WANTS the PDF:** the PDF is always rendered offline by LibreOffice — never
+  Google. First check whether LibreOffice is present:
   ```bash
   python3 -c "import sys; sys.path.insert(0,'scripts'); from local_pdf import find_libreoffice; print(find_libreoffice() or 'MISSING')"
   ```
-  * If it prints a path → run the PDF path:
+  * If it prints a path → generate the PDF:
     ```bash
     python3 scripts/generate_deck.py --format pdf
     ```
-  * If it prints `MISSING` → tell the user to install LibreOffice once, in their own terminal,
-    then re-run the PDF command:
+  * If it prints `MISSING` → **tell the user you're going to install LibreOffice for them**
+    (offline PDF renderer, no account), then do it and generate the PDF:
     ```bash
-    ./install.sh --yes --skip-credentials
+    ./install.sh --yes --skip-credentials   # provisions LibreOffice + bundled fonts, cross-platform
+    python3 scripts/generate_deck.py --format pdf
     ```
-    (The installer provisions LibreOffice + the deck's bundled fonts cross-platform. If they
-    decline, fall back to `--format csv`.)
+    (If the user declines the install, fall back to `--format csv`.)
 
 > The metrics CSV is produced on **every** run, so the PDF path yields both the PDF and the CSV.
 > Do **not** offer PPTX as a user-facing choice — it is internal plumbing the PDF path uses.
+> **Never** mention Google, Google Slides, OAuth, client secrets, or refresh tokens in the PDF
+> flow — the PDF is 100% offline. (A `--format slides` path exists for advanced users who set
+> their own Google API env vars, but it is never part of the default or PDF experience.)
 
 ---
 
@@ -97,8 +102,9 @@ Provide a concise executive summary of the tenant posture, plus clickable markdo
 whatever was generated:
 
 * 📊 **Tenant Metrics CSV** *(every run)*: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)` — hand this to your Wiz TAM.
-* 📄 **Executive PDF Deck** *(only if the user chose PDF)*: link to the generated `.pdf`. With Google configured it is exported from Slides; otherwise it is rendered locally via **LibreOffice** (offline, no credentials).
+* 📄 **Executive PDF Deck** *(only if the user chose PDF)*: link to the generated `.pdf`. It is rendered locally via **LibreOffice** (offline, no account, no credentials).
 * If the PDF was requested but LibreOffice was missing and the install was declined, relay the exact install command the script printed; the CSV is still delivered.
 
-**NEVER ask the user for Google credentials or Google OAuth setup.** LibreOffice is a system
-package provisioned by `./install.sh` — it is **not** a pip dependency; do not `pip install` it.
+**NEVER ask the user for Google credentials or Google OAuth setup, and never reference them in
+the PDF flow.** LibreOffice is a system package provisioned by `./install.sh` — it is **not** a
+pip dependency; do not `pip install` it.

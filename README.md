@@ -10,7 +10,7 @@ Works out-of-the-box with **Claude Code**, **Claude Desktop**, **Cursor**, **Cha
 
 1. **Automated Executive Presentation Deck Builder (`scripts/generate_deck.py`)**:
    * Authenticates with the Wiz GraphQL API and queries live tenant posture, inventory, and configuration settings.
-   * Generates a **22-slide PowerPoint presentation (`.pptx`)** or **Google Slides deck**.
+   * Generates a **23-slide executive deck** as an **offline PDF** (rendered locally via LibreOffice — no Google account) or **PowerPoint (`.pptx`)**, plus a metrics CSV on every run.
    * Populates **500+ variables** including canonical Kubernetes coverage ladder & gaps, Top 3 Critical & High controls, Advanced ASM estimated workloads, and Tracked Roadmap items.
    * Automatically applies **soft light green background highlighting** (`#E0F5E0`) to all enabled Public and Private Preview Hub features.
    * Sweeps remaining unfilled template tokens and cleans up unused date placeholders.
@@ -93,10 +93,10 @@ The AI assistant will:
   ```bash
   python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
   ```
-  With Google configured, the PDF is exported from Google Slides. **Without Google,**
-  the deck is built locally as PPTX and rendered to PDF via LibreOffice — no
-  credentials, fully offline. If LibreOffice is missing, the script prints the exact
-  one-line install command instead of silently producing only a PPTX.
+  The PDF is **always rendered locally and offline via LibreOffice — no Google account,
+  OAuth, or credentials.** LibreOffice is installed for you when you choose the PDF option
+  (or via `./install.sh`); if it is missing, the script prints the exact one-line install
+  command instead of silently producing only a PPTX.
 
 * **Generate the Metrics CSV only (no deck, no LibreOffice needed):**
   ```bash
@@ -105,10 +105,18 @@ The AI assistant will:
   Fastest path — queries the tenant and writes just the 660+ metric CSV. Ideal to hand to
   your Wiz TAM.
 
-* **Generate All Formats (PDF + Google Slides + Local PPTX + CSV):**
+* **Generate a local PowerPoint (.pptx) + CSV:**
   ```bash
-  python3 scripts/generate_deck.py --format all --customer "Acme Corporation"
+  python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
   ```
+
+* **(Advanced, optional) Live Google Slides deck:**
+  ```bash
+  python3 scripts/generate_deck.py --format slides --customer "Acme Corporation"
+  ```
+  Requires you to set your own Google API env vars (`GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`). This is **not** needed for the PDF and is
+  never part of the default flow — see `docs/GOOGLE_SLIDES_SETUP.md`.
 
 * **Offline Mode from Customer Intake CSV:**
   ```bash

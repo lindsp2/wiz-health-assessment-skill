@@ -102,7 +102,7 @@ The **metrics CSV is produced on every run**; the PDF is produced only when the 
 ### Deliverables Output:
 Provide a concise executive summary of the tenant posture and clickable links to whatever was generated:
 * 📊 **Tenant Metrics CSV** *(every run)*: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)` — hand this to your Wiz TAM.
-* 📄 **Executive PDF Deck** *(only if requested)*: clickable link to the generated `.pdf`. With Google configured it is exported from Slides; otherwise it is rendered locally via LibreOffice (offline, no credentials).
+* 📄 **Executive PDF Deck** *(only if requested)*: clickable link to the generated `.pdf`. Rendered locally via LibreOffice (offline, no Google account or credentials).
 * If the PDF was requested but LibreOffice was missing and declined, relay the exact install command the script printed; the CSV is still delivered.
 * **NEVER ask the user for Google credentials or Google OAuth.** LibreOffice is a system package (installed via `./install.sh`), not a pip dependency.
 

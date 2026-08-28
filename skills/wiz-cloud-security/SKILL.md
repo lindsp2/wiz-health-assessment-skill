@@ -50,9 +50,9 @@ When the user asks to run a Health Assessment, audit their tenant, or generate a
 
 ## 2. CLI Command Options & Modes
 
-> **PDF renders offline (no Google).** With Google configured, the PDF is exported from
-> Slides; otherwise it is rendered locally via **LibreOffice** (installed once by `./install.sh`).
-> For a no-install, TAM-handoff output, use `--format csv`.
+> **PDF renders offline via LibreOffice — no Google account, OAuth, or sign-in, ever.**
+> LibreOffice is installed for you when you choose the PDF option (a one-time system package,
+> also available via `./install.sh`). For a no-install, TAM-handoff output, use `--format csv`.
 
 ```bash
 # 1. Full Autonomous Assessment (PDF deck + Metrics CSV - Default)

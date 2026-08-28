@@ -1358,7 +1358,7 @@ def main():
     parser.add_argument("--folder-id", "-f", help="Target Google Drive folder ID (default: GOOGLE_FOLDER_ID from .env)")
     parser.add_argument("--template-id", "-t", help="Master Google Slides template ID (default: QBR_TEMPLATE_ID from .env)")
     parser.add_argument("--env-file", "-e", help="Path to custom .env file (default: .env)")
-    parser.add_argument("--format", choices=["pdf", "csv", "slides", "pptx", "both", "all"], default="pdf", help="Output format: 'pdf' (executive deck as PDF - Google export if configured, else local LibreOffice render, Default), 'csv' (metrics CSV only - no deck, no LibreOffice needed, ideal for handing to your Wiz TAM), 'slides' (Google Slides), 'pptx' (local PowerPoint), 'both' (PDF + Slides), or 'all' (PDF + Slides + PPTX). The metrics CSV is always produced regardless of format.")
+    parser.add_argument("--format", choices=["pdf", "csv", "pptx", "slides"], default="pdf", help="Output format: 'pdf' (executive deck as PDF, rendered locally & offline via LibreOffice - no Google account, Default), 'csv' (metrics CSV only - no deck, no LibreOffice needed, ideal for handing to your Wiz TAM), 'pptx' (local PowerPoint), or 'slides' (advanced: live Google Slides deck - requires Google API credentials set in the environment). The metrics CSV is always produced regardless of format.")
     parser.add_argument("--input-csv", "-i", help="Path to customer-filled metrics CSV file (generates presentation directly from CSV without needing Wiz API access)")
     parser.add_argument("--output-csv", help="Path to export populated metrics CSV file (default: output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)")
     parser.add_argument("--output-pdf", help="Path to output PDF presentation file (default: output/Wiz_Health_Assessment_<Customer>_<Date>.pdf)")
@@ -1472,10 +1472,15 @@ def main():
         if not default_tmpl.exists():
             generate_intake_template_csv(str(default_tmpl))
 
-    # 2. Local PowerPoint (.pptx) Generation (Only if explicitly requested via --format pptx or --format all)
+    # 2. Local PowerPoint (.pptx) Generation
+    #    Built for --format pptx, and also as the intermediate the offline PDF renders from.
     template_pptx = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
     pptx_generated = False
-    if selected_format in ("pptx", "all") and not args.dry_run and os.path.exists(template_pptx):
+
+    def _build_pptx():
+        nonlocal pptx_generated
+        if pptx_generated or args.dry_run or not os.path.exists(template_pptx):
+            return
         print(f"\n[*] Generating local PowerPoint presentation from {template_pptx}...")
         enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
         pptx_res = process_pptx_template(
@@ -1492,43 +1497,47 @@ def main():
         if pptx_res['swept_tokens'] > 0:
             print(f"    Swept {pptx_res['swept_tokens']} unfilled template tokens.")
 
-    # 3. Google Slides & Master 23-Slide High-Resolution PDF Generation
+    if selected_format == "pptx":
+        _build_pptx()
+
+    # 3. Executive PDF — rendered locally and OFFLINE via LibreOffice. No Google account,
+    #    OAuth, client secret, or refresh token is involved at any point in the PDF path.
     new_deck_id = None
     new_deck_url = None
     pdf_generated = False
 
-    if selected_format in ("pdf", "slides", "both", "all") and not args.dry_run:
+    if selected_format == "pdf" and not args.dry_run:
+        print("\n[*] PDF selected -> rendering the deck locally with LibreOffice (offline, no Google account needed).")
+        _build_pptx()
+        if pptx_generated and os.path.exists(output_pptx):
+            # Ensure the deck's design fonts (Poppins, DM Sans) are installed so
+            # LibreOffice does not silently fall back to DejaVu Sans.
+            try:
+                from ensure_libreoffice import install_bundled_fonts
+                install_bundled_fonts()
+            except Exception:
+                pass
+            ok, msg = convert_pptx_to_pdf(output_pptx, output_pdf)
+            if ok:
+                pdf_generated = True
+                print(f"    [✓] Local PDF presentation generated: {msg}")
+            else:
+                # convert_pptx_to_pdf returns actionable guidance (e.g. how to install
+                # LibreOffice) when soffice is missing. The .pptx is still available.
+                print(f"    [!] PDF NOT generated (LibreOffice needed):\n    {msg}")
+                print(f"    The PowerPoint (.pptx) and metrics CSV were still produced.")
+        elif not os.path.exists(template_pptx):
+            print(f"    [!] Template not found at {template_pptx}; cannot render PDF.")
+
+    # 4. Google Slides — ADVANCED, opt-in only (--format slides). Requires Google API
+    #    credentials to already be present in the environment; it is never part of the
+    #    default or PDF flow and is not referenced by .env.example.
+    if selected_format == "slides" and not args.dry_run:
         slides_client = GoogleSlidesClient.from_env()
         if not slides_client:
-            # Fallback to local 23-slide presentation generator (requires zero Google setup)
-            if not pptx_generated and os.path.exists(template_pptx):
-                print(f"\n[*] Generating local 23-slide presentation from template...")
-                enabled_titles = {it["title"].strip() for it in preview_items if it.get("enabled")}
-                pptx_res = process_pptx_template(
-                    template_path=template_pptx,
-                    output_path=output_pptx,
-                    variables=merged,
-                    enabled_preview_titles=enabled_titles
-                )
-                pptx_generated = True
-                print(f"    [✓] Presentation generated: {output_pptx} ({pptx_res['file_size']:,} bytes)")
-
-            # Zero-Google local PDF: render the just-built PPTX to PDF via LibreOffice.
-            if selected_format in ("pdf", "both", "all") and pptx_generated and os.path.exists(output_pptx):
-                print(f"\n[*] Rendering local PDF from PPTX (no Google required)...")
-                # Ensure the deck's design fonts (Poppins, DM Sans) are installed so
-                # LibreOffice does not silently fall back to DejaVu Sans.
-                try:
-                    from ensure_libreoffice import install_bundled_fonts
-                    install_bundled_fonts()
-                except Exception:
-                    pass
-                ok, msg = convert_pptx_to_pdf(output_pptx, output_pdf)
-                if ok:
-                    pdf_generated = True
-                    print(f"    [✓] Local PDF presentation generated: {msg}")
-                else:
-                    print(f"    [!] Local PDF NOT generated:\n    {msg}")
+            print("\n[!] --format slides requires Google API credentials "
+                  "(GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN) in the environment.")
+            print("    None were found. Skipping Google Slides. For an offline deck use --format pdf instead.")
         else:
             print(f"\n[*] Copying master 23-slide template {template_id} to customer folder {target_folder_id}...")
             copy_res = slides_client.copy_template(customer_name, timestamp_str, target_folder_id)
@@ -1597,13 +1606,6 @@ def main():
             print("\n[*] Sweeping remaining unfilled template tokens...")
             sweep_res = slides_client.sweep_remaining_tokens(new_deck_id)
             print(f"    Swept {sweep_res.get('swept_count', 0)} unfilled token(s)")
-
-            # Export authentic master presentation directly to PDF
-            if selected_format in ("pdf", "both", "all"):
-                print(f"\n[*] Exporting master 23-slide Google presentation directly to PDF...")
-                slides_client.export_pdf(new_deck_id, output_pdf)
-                pdf_generated = True
-                print(f"    [✓] Master PDF presentation generated: {output_pdf} ({os.path.getsize(output_pdf):,} bytes)")
 
     if args.dry_run:
         print(f"\n[*] Dry Run Completed for Customer: {customer_name}")
