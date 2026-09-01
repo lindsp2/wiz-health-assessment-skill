@@ -322,6 +322,8 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
         secretScanning { isEnabled }
       }
 
+      endpointExposureLevelSettings { policyType }
+
       vas: vulnerabilityAssessmentSettings {
         latestKernelVersionVulnerabilitiesDetectionEnabled
         osPackageManagedCodeLibrariesVulnerabilitiesDetectionEnabled
@@ -506,6 +508,9 @@ def fetch_live_tenant_telemetry(access_token: str, api_endpoint: str):
       drTotal: applicationServiceDiscoveryRules(first: 1)     { totalCount }
       wfOn:  automationWorkflows(filterBy: {enabled: true})   { totalCount }
       wfOff: automationWorkflows(filterBy: {enabled: false})  { totalCount }
+      irTotal: inventoryRules(first: 1) { totalCount }
+      ppUser: cloudConfigurationRules(first: 1, filterBy: { createdByType: [USER] }) { totalCount }
+      mmUser: monitoredMetrics(first: 1, filterBy: { builtin: false }) { totalCount }
 
       cliScans: cicdScans(first: 1, filterBy: { createdAt: { after: $cliStart } }) { totalCount }
       k8sClusters: kubernetesClusters(first: 500) {

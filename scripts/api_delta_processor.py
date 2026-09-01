@@ -431,7 +431,10 @@ def run_post_process(c: Dict[str, Any]) -> Dict[str, str]:
     out["ASM_VULN"] = nested_on(asm.get("vulnerabilityScanning"))
     out["ASM_DATA"] = nested_on(asm.get("dataScanning"))
     out["ASM_SEC"] = nested_on(asm.get("secretScanning"))
-    out["ASM_EXPL"] = "Moderate"
+    # Application Endpoint Exposure Level: live from endpointExposureLevelSettings.policyType
+    # (PERMISSIVE / MODERATE / STRICT / CUSTOM). Falls back to "Moderate" if unavailable.
+    _eel = (q1.get("endpointExposureLevelSettings") or {}).get("policyType")
+    out["ASM_EXPL"] = _eel.title() if isinstance(_eel, str) and _eel else "Moderate"
 
     out["VS_LVULN"] = on_off(vas.get("latestKernelVersionVulnerabilitiesDetectionEnabled") if vas.get("latestKernelVersionVulnerabilitiesDetectionEnabled") is not None else vas.get("osPackageManagedCodeLibrariesVulnerabilitiesDetectionEnabled"))
     out["VS_OSPKG"] = on_off(vas.get("osPackageManagedCodeLibrariesVulnerabilitiesDetectionEnabled"))

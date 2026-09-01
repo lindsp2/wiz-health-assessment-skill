@@ -297,7 +297,7 @@ METRIC_DEFINITIONS: List[Dict[str, Any]] = [
     {"var": "F_DR", "category": "Adoption & Governance", "name": "Service Catalog Discovery Rules", "slide": "6", "desc": "Application/service discovery rules configured", "default": ""},
     {"var": "F_FW", "category": "Adoption & Governance", "name": "Custom Compliance Frameworks", "slide": "6", "desc": "Count of user-created custom compliance frameworks enabled", "default": ""},
     {"var": "F_GA", "category": "Adoption & Governance", "name": "Green Agent Enabled", "slide": "6, 13", "desc": "Whether the Wiz Green Agent (WizOS) is enabled", "default": ""},
-    {"var": "F_IR", "category": "Adoption & Governance", "name": "Inventory Management Rules", "slide": "6", "desc": "User-created inventory management rules", "default": ""},
+    {"var": "F_IR", "category": "Adoption & Governance", "name": "Inventory Management Rules", "slide": "6", "desc": "Total inventory management rules configured", "default": ""},
     {"var": "F_MM", "category": "Adoption & Governance", "name": "User Created Monitored Metrics", "slide": "6", "desc": "Custom monitored metrics created by the customer", "default": ""},
     {"var": "F_PP", "category": "Adoption & Governance", "name": "User Created Posture Policies", "slide": "6", "desc": "Custom posture policies created by the customer", "default": ""},
     {"var": "F_RA", "category": "Adoption & Governance", "name": "Red Agent Enabled", "slide": "6, 13", "desc": "Whether the Wiz Red Agent (offensive) is enabled", "default": ""},
