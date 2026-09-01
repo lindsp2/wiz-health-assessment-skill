@@ -33,7 +33,7 @@ from api_delta_processor import build_replacement_requests, process_raw_api_delt
 from google_slides_client import GoogleSlidesClient, QBR_TEMPLATE_ID
 from preview_hub import transform_preview_hub, format_tracked_roadmap_items
 from pptx_processor import process_pptx_template
-from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv
+from csv_metrics_processor import export_metrics_to_csv, generate_intake_template_csv, load_metrics_from_csv, extract_template_tokens
 from local_pdf import convert_pptx_to_pdf
 from run_logger import init_logger, get_logger, default_log_path
 
@@ -1465,8 +1465,12 @@ def main():
     Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Export Populated Metrics CSV & Blank Intake Template
+    #    Restrict the CSV to the deck's actual {{ }} variables so every row is a real
+    #    template token with a curated title/description (no internal helper keys).
     if not args.dry_run:
-        csv_file = export_metrics_to_csv(merged, output_csv, customer_name)
+        _tmpl_for_tokens = args.pptx_template or str(SCRIPT_DIR.parent / "templates" / "wiz_health_assessment_template.pptx")
+        _tmpl_tokens = extract_template_tokens(_tmpl_for_tokens) or None
+        csv_file = export_metrics_to_csv(merged, output_csv, customer_name, template_tokens=_tmpl_tokens)
         print(f"\n[*] Metrics CSV generated: {csv_file}")
         default_tmpl = SCRIPT_DIR.parent / "templates" / "wiz_customer_metrics_intake_template.csv"
         if not default_tmpl.exists():
