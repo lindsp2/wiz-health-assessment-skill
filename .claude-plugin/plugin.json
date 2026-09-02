@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/claude-plugin.schema.json",
+  "name": "wiz-health-assessment",
+  "displayName": "Wiz Tenant Health Assessment",
+  "version": "1.0.0",
+  "description": "Generate an executive Wiz Tenant Health Assessment deck (offline PDF via LibreOffice) and a complete metrics CSV from live tenant telemetry - scanning fidelity, Kubernetes coverage, DSPM, AI footprint, Preview Hub, top controls, and a prioritized roadmap. Runs on the Python standard library; no Google account.",
+  "author": { "name": "Lindsey Petrone" },
+  "homepage": "https://github.com/lindsp77/wiz-health-assessment-skill",
+  "repository": "https://github.com/lindsp77/wiz-health-assessment-skill",
+  "license": "MIT",
+  "keywords": ["wiz", "cloud-security", "health-assessment", "cspm", "dspm", "assessment", "report", "pdf"],
+  "skills": "./skills"
+}

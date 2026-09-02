@@ -39,13 +39,10 @@ from run_logger import init_logger, get_logger, default_log_path
 
 def get_wiz_access_token():
     env_vars = {}
-    env_path = os.environ.get("ENV_FILE")
-    if not env_path or not os.path.exists(env_path):
-        repo_env = SCRIPT_DIR.parent / ".env"
-        if repo_env.exists():
-            env_path = str(repo_env)
-        else:
-            env_path = ".env"
+    # Locate .env in both clone mode and plugin mode (user's project dir first).
+    from console_compat import find_env_file
+    _found = find_env_file(SCRIPT_DIR.parent)
+    env_path = str(_found) if _found else (os.environ.get("ENV_FILE") or ".env")
     if os.path.exists(env_path):
         with open(env_path) as f:
             for line in f:

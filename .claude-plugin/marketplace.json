@@ -1,0 +1,20 @@
+{
+  "$schema": "../schemas/claude-marketplace.schema.json",
+  "name": "wiz-health-assessment-skill",
+  "version": "1.0.0",
+  "description": "Marketplace for the Wiz Tenant Health Assessment plugin - executive PDF deck + metrics CSV from live Wiz telemetry.",
+  "owner": {
+    "name": "Lindsey Petrone",
+    "url": "https://github.com/lindsp77"
+  },
+  "plugins": [
+    {
+      "name": "wiz-health-assessment",
+      "source": ".",
+      "description": "Generate an executive Wiz Tenant Health Assessment deck (offline PDF) and metrics CSV from live tenant telemetry.",
+      "category": "security",
+      "keywords": ["wiz", "cloud-security", "health-assessment", "cspm", "report"],
+      "author": { "name": "Lindsey Petrone" }
+    }
+  ]
+}

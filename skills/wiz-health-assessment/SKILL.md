@@ -18,9 +18,23 @@ You are an expert cloud security architect and technical advisor specializing in
 > **1. NEVER ask the user to paste, type, or share their Wiz Client Secret, API tokens, or Google OAuth secrets into the chat or LLM context.**
 >
 > **2. STRICT DIRECTORY ISOLATION — DO NOT SNOOP OR SEARCH OTHER FOLDERS:**
-> * You **MUST ONLY** look for `.env` inside the current repository root (`wiz-health-assessment-skill/.env`).
+> * You **MUST ONLY** look for `.env` in the user's **current working directory** (`./.env`).
 > * **DO NOT** grep, search, list, read, or inspect parent directories (`../`, `~`, `/home/...`), neighboring project directories, shell histories, or other workspace folders for Wiz credentials or API secrets.
-> * If `wiz-health-assessment-skill/.env` is missing or lacks credentials, **STOP IMMEDIATELY**. Do not attempt to find credentials elsewhere. Guide the user with Option 1 or Option 2 below.
+> * If `./.env` is missing or lacks credentials, **STOP IMMEDIATELY**. Do not attempt to find credentials elsewhere. Guide the user with Option 1 or Option 2 below.
+
+---
+
+## 0. Runtime modes (plugin vs. cloned repo)
+
+This skill runs the same way whether it was **installed as a Claude Code plugin** or used
+from a **cloned repo**:
+* **Scripts** are addressed as `${CLAUDE_PLUGIN_ROOT:-.}/scripts/...` in every command below.
+  When installed as a plugin, `$CLAUDE_PLUGIN_ROOT` resolves to the plugin's bundled files;
+  from a clone it falls back to `.` (the repo). You do not need to `cd` anywhere.
+* **Credentials** always come from the user's own **`.env` in the current working directory**
+  (the scripts auto-resolve `$CLAUDE_PROJECT_DIR/.env` → `./.env`). The plugin's own directory
+  is Claude-managed and is never where credentials live.
+* **Outputs** (CSV/PDF) are written to `./output/` in the user's working directory.
 
 ---
 
@@ -32,7 +46,7 @@ When the user says:
 Follow this exact sequence.
 
 ### Step 1: Check `.env` for Configuration
-Inspect `wiz-health-assessment-skill/.env` in the repository root. The assessment reads
+Inspect `./.env` in the user's current working directory. The assessment reads
 `CUSTOMER_NAME`, `WIZ_DATACENTER`, `WIZ_CLIENT_ID`, and `WIZ_CLIENT_SECRET` directly from
 `.env` — **do not ask for the customer name, datacenter, or output format up front.**
 
@@ -43,7 +57,7 @@ Configuration is complete. Continue to **Step 2**.
 Do not prompt the user for secrets in chat. Present these two options to configure `.env`:
 
 1. **Option 1: Update `.env` manually**
-   * Create or edit `wiz-health-assessment-skill/.env` on disk:
+   * Create or edit `.env` in your current working directory:
      ```bash
      CUSTOMER_NAME=My Company
      WIZ_DATACENTER=us1
@@ -60,7 +74,7 @@ Do not prompt the user for secrets in chat. Present these two options to configu
    * Open a **separate terminal window** (one not connected to this AI agent session).
    * Run the interactive setup wizard:
      ```bash
-     python3 wiz-health-assessment-skill/scripts/setup_credentials.py
+     python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/setup_credentials.py"
      ```
      *(Note: You may need to use `python` or `python3` depending on your OS configuration).*
    * This script will prompt for your Customer Name, Datacenter, Client ID, and Client Secret, test live connectivity to the Wiz API, and write the `.env` file securely on disk.
@@ -78,16 +92,16 @@ Now that configuration is complete, ask **one** question before running:
 
 * **If the user does NOT want the PDF (or just says "run it"):** generate the CSV only.
   ```bash
-  python3 scripts/generate_deck.py --format csv
+  python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format csv
   ```
 * **If the user WANTS the PDF:** confirm LibreOffice is available:
   ```bash
-  python3 -c "import sys; sys.path.insert(0,'scripts'); from local_pdf import find_libreoffice; print(find_libreoffice() or 'MISSING')"
+  python3 -c "import sys; sys.path.insert(0,'${CLAUDE_PLUGIN_ROOT:-.}/scripts'); from local_pdf import find_libreoffice; print(find_libreoffice() or 'MISSING')"
   ```
-  * If it prints a path → `python3 scripts/generate_deck.py --format pdf`
+  * If it prints a path → `python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format pdf`
   * If it prints `MISSING` → tell the user to install LibreOffice once, in their own terminal, then re-run the PDF command:
     ```bash
-    ./install.sh --yes --skip-credentials
+    "${CLAUDE_PLUGIN_ROOT:-.}/install.sh" --yes --skip-credentials
     ```
     If they decline, fall back to `--format csv`.
 
@@ -104,7 +118,7 @@ Provide a concise executive summary of the tenant posture and clickable links to
 * 📊 **Tenant Metrics CSV** *(every run)*: `[Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv](file:///path/to/output/Wiz_Health_Assessment_<Customer>_<Date>_metrics.csv)` — hand this to your Wiz TAM.
 * 📄 **Executive PDF Deck** *(only if requested)*: clickable link to the generated `.pdf`. Rendered locally via LibreOffice (offline, no Google account or credentials).
 * If the PDF was requested but LibreOffice was missing and declined, relay the exact install command the script printed; the CSV is still delivered.
-* **NEVER ask the user for Google credentials or Google OAuth.** LibreOffice is a system package (installed via `./install.sh`), not a pip dependency.
+* **NEVER ask the user for Google credentials or Google OAuth.** LibreOffice is a system package (installed via `${CLAUDE_PLUGIN_ROOT:-.}/install.sh`), not a pip dependency.
 
 ---
 
@@ -112,19 +126,19 @@ Provide a concise executive summary of the tenant posture and clickable links to
 
 ```bash
 # 1. Metrics CSV only — no deck, no LibreOffice. Default, ideal to hand to your Wiz TAM.
-python3 scripts/generate_deck.py --format csv
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format csv
 
 # 2. Executive PDF deck + metrics CSV. Offline LibreOffice render if no Google.
-python3 scripts/generate_deck.py --format pdf
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format pdf
 
 # 3. Offline Mode from Customer-Provided CSV (when API access is unavailable)
-python3 scripts/generate_deck.py --input-csv path/to/customer_metrics.csv --format pdf
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --input-csv path/to/customer_metrics.csv --format pdf
 
 # 4. Generate Blank Customer Intake Template
-python3 scripts/generate_deck.py --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --generate-csv-template templates/wiz_customer_metrics_intake_template.csv
 
 # 5. Standalone Markdown Audit Report
-python3 scripts/run_health_assessment.py -o health_report.md
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/run_health_assessment.py" -o health_report.md
 ```
 
 *(`CUSTOMER_NAME` is read from `.env`; pass `--customer "Name"` only to override it.)*
@@ -165,7 +179,7 @@ When numbers look off:
    re-run (default is 120s):
    ```bash
    export WIZ_QUERY_TIMEOUT=300      # seconds; Windows: set WIZ_QUERY_TIMEOUT=300
-   python3 scripts/generate_deck.py --format csv
+   python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format csv
    ```
 3. **Send Lindsey the log** (`output/logs/wiz_health_run_<timestamp>.log`) + the
    `.diagnostics.json` sidecar if you can't resolve it — it has the exact per-query trail.

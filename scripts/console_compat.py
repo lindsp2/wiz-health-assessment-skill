@@ -74,3 +74,52 @@ def prompt(message, default=""):
     except (EOFError, KeyboardInterrupt):
         print()
         return default
+
+
+def find_env_file(plugin_root=None):
+    """Locate the Wiz-credentials .env, working in BOTH clone mode and plugin mode.
+
+    When this tool is installed as a Claude Code plugin, the code lives in a
+    Claude-managed directory the user can't edit, so the .env must come from the
+    user's own working directory instead. Search order (first hit wins):
+
+      1. $ENV_FILE                     - explicit override
+      2. $CLAUDE_PROJECT_DIR/.env      - plugin mode: the user's project dir
+      3. ./.env                        - current working directory
+      4. <plugin_root>/.env            - clone mode: the repo root
+
+    Returns a pathlib.Path or None. Env vars (WIZ_CLIENT_ID, ...) still work on
+    their own; this only locates a file to layer on top of them.
+    """
+    from pathlib import Path
+    candidates = []
+    if os.environ.get("ENV_FILE"):
+        candidates.append(Path(os.environ["ENV_FILE"]))
+    if os.environ.get("CLAUDE_PROJECT_DIR"):
+        candidates.append(Path(os.environ["CLAUDE_PROJECT_DIR"]) / ".env")
+    candidates.append(Path.cwd() / ".env")
+    if plugin_root:
+        candidates.append(Path(plugin_root) / ".env")
+    for c in candidates:
+        try:
+            if c and c.is_file():
+                return c
+        except OSError:
+            continue
+    return None
+
+
+def default_env_write_path(plugin_root=None):
+    """Where setup_credentials should WRITE a new .env.
+
+    Prefer the user's project dir ($CLAUDE_PROJECT_DIR) then the current working
+    directory, so a plugin install writes somewhere the user actually owns.
+    Falls back to the repo root only in clone mode.
+    """
+    from pathlib import Path
+    if os.environ.get("CLAUDE_PROJECT_DIR"):
+        return Path(os.environ["CLAUDE_PROJECT_DIR"]) / ".env"
+    if plugin_root and not os.environ.get("CLAUDE_PLUGIN_ROOT"):
+        # clone mode: repo root is user-editable
+        return Path(plugin_root) / ".env"
+    return Path.cwd() / ".env"

@@ -18,7 +18,6 @@ Works out-of-the-box with **Claude Code**, **Claude Desktop**, **Cursor**, **Cha
 2. **Universal AI Agent Skills (`skills/`)**:
    * `skills/wiz-health-assessment/SKILL.md`: Guides the AI assistant to conduct end-to-end tenant health assessments and generate client-ready presentations.
    * `skills/wiz-api-expert/SKILL.md`: Expert assistant for constructing, optimizing, and executing custom GraphQL queries against the Wiz API.
-   * `skills/wiz-cloud-security/SKILL.md`: Universal cloud security assessment and MCP tool suite.
 
 3. **Standalone Tenant Health Assessment Auditor (`scripts/run_health_assessment.py`)**:
    * Evaluates the 7 core health pillars (Connectors, Workload Scanning, DSPM, CDR, Automation Rules, Identity Governance, Action Plan) and generates an executive Markdown scorecard.
@@ -30,17 +29,33 @@ Works out-of-the-box with **Claude Code**, **Claude Desktop**, **Cursor**, **Cha
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+There are two ways to get this: **install it as a Claude Code plugin** (recommended — no
+clone, one-command install, auto-updates) or **clone the repo** (works with any assistant).
+
+### Option A — Install as a Claude Code plugin (recommended)
+
+```
+/plugin marketplace add lindsp77/wiz-health-assessment-skill
+/plugin install wiz-health-assessment@wiz-health-assessment-skill
+```
+
+Then just ask: *"Run a Wiz health assessment and generate my files."* The skill is invokable
+explicitly as `/wiz-health-assessment:wiz-health-assessment`. Credentials come from a `.env` in
+**your current working directory** (see Step 2) — the plugin never stores them. That's it; skip
+to Step 2. (No `git clone`, no `pip install` — the scripts are pure Python standard library.)
+
+### Option B — Clone the repository
+
 ```bash
 git clone https://github.com/lindsp77/wiz-health-assessment-skill.git
 cd wiz-health-assessment-skill
 ```
 
 > [!IMPORTANT]
-> **No installer or `pip install` is required to run the assessment.** The scripts
-> are pure Python **standard library** (Python 3.8+) with **zero third-party
-> dependencies**. After cloning, the only setup is your Wiz credentials (Step 2).
-> Just point your AI assistant at the folder and ask it to run the assessment.
+> **No installer or `pip install` is required to run the assessment (either option).** The
+> scripts are pure Python **standard library** (Python 3.8+) with **zero third-party
+> dependencies**. The only setup is your Wiz credentials (Step 2). Just point your AI
+> assistant at the folder (or install the plugin) and ask it to run the assessment.
 
 ### 2. Configure your Wiz credentials
 
@@ -141,10 +156,11 @@ The AI assistant will:
 ├── skills/
 │   ├── wiz-health-assessment/
 │   │   └── SKILL.md                         # Skill: Executive Health Assessment & Deck Builder
-│   ├── wiz-api-expert/
-│   │   └── SKILL.md                         # Skill: Expert Wiz GraphQL API Assistant
-│   └── wiz-cloud-security/
-│       └── SKILL.md                         # Skill: Universal Cloud Security & MCP Suite
+│   └── wiz-api-expert/
+│       └── SKILL.md                         # Skill: Expert Wiz GraphQL API Assistant
+├── .claude-plugin/
+│   ├── plugin.json                          # Claude Code plugin manifest
+│   └── marketplace.json                     # Marketplace listing (for /plugin marketplace add)
 ├── docs/
 │   ├── WIZ_SERVICE_ACCOUNT_SETUP.md         # Guide: Minting a Wiz Service Account (read:all)
 │   ├── GOOGLE_SLIDES_SETUP.md               # Guide: Enabling Google Slides/Drive OAuth

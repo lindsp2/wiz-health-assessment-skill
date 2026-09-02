@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from console_compat import enable_unicode_output, python_command
+from console_compat import enable_unicode_output, python_command, default_env_write_path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent
@@ -129,7 +129,9 @@ def main():
     # The PDF deck is rendered offline via LibreOffice, so no Google/OAuth config is
     # written. Only if the user has ALREADY set up the advanced --format slides path
     # (Google creds present in an existing .env) do we preserve those lines verbatim.
-    env_path = REPO_DIR / ".env"
+    # In plugin mode the repo dir is Claude-managed; write the .env where the user
+    # owns it (their project dir / cwd). In clone mode this is the repo root.
+    env_path = default_env_write_path(REPO_DIR)
     existing_vars = {}
     if env_path.is_file():
         with open(env_path, "r", encoding="utf-8") as f:
