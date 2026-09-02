@@ -36,41 +36,43 @@ git clone https://github.com/lindsp77/wiz-health-assessment-skill.git
 cd wiz-health-assessment-skill
 ```
 
-> [!NOTE]
-> **Offline PDF export (no Google required).** The installer also provisions
-> **LibreOffice**, a free, offline renderer used to convert the generated deck to
-> PDF with zero Google credentials. For faithful output it installs the deck's
-> design fonts — **Poppins** and **DM Sans** are bundled in `assets/fonts/` (free
-> OFL) and copied to your user font directory; **JetBrains Mono** comes from the
-> package manager; and **Arial/Calibri** map to free metric-compatible substitutes
-> (Liberation Sans / Carlito). Without the bundled fonts, LibreOffice silently
-> falls back to DejaVu Sans and the deck looks wrong — so the installer handles
-> them for you. Skip all of this with `--skip-libreoffice` (you still get PPTX +
-> CSV, and can enable PDF later).
+> [!IMPORTANT]
+> **No installer or `pip install` is required to run the assessment.** The scripts
+> are pure Python **standard library** (Python 3.8+) with **zero third-party
+> dependencies**. After cloning, the only setup is your Wiz credentials (Step 2).
+> Just point your AI assistant at the folder and ask it to run the assessment.
 
-### 2. Run the One-Step Installer
+### 2. Configure your Wiz credentials
 
-* **Linux / macOS / Git Bash:**
-  ```bash
-  ./install.sh
-  ```
-* **Windows (Command Prompt `cmd.exe`):**
-  ```cmd
-  install.bat
-  ```
-* **Windows (PowerShell):**
-  ```powershell
-  .\install.ps1
-  ```
-* **Or via Python directly (Any OS):**
-  ```bash
-  python -m pip install -r requirements.txt
-  python scripts/install_skills.py
-  ```
+Create a `.env` in the repo root (copy `.env.example`) with your Wiz Service
+Account `WIZ_CLIENT_ID` / `WIZ_CLIENT_SECRET` and datacenter — or run the wizard:
+```bash
+python3 scripts/setup_credentials.py
+```
+That's everything needed for the **metrics CSV** (the default output).
+
+### 3. (Optional) Enable the offline PDF deck — LibreOffice
+
+You only need this if you want the polished **PDF** deck. The PDF is rendered
+**locally and offline via LibreOffice** (a free system package — **no Google
+account, no credentials**). You don't have to run anything up front: when you ask
+the assistant for a PDF and LibreOffice isn't installed yet, **it offers to install
+it for you**. To provision it yourself instead:
+
+* **Linux / macOS / Git Bash:** `./install.sh --skip-credentials`
+* **Windows:** `install.bat` / `.\install.ps1`
+
+> The installer provisions **LibreOffice** plus the deck's design fonts — **Poppins**
+> and **DM Sans** (bundled OFL in `assets/fonts/`), **JetBrains Mono**, and free
+> metric-compatible substitutes for Arial/Calibri (Liberation Sans / Carlito).
+> Without those fonts LibreOffice falls back to DejaVu Sans and the deck looks
+> wrong, so the installer handles them for you. It installs **no** Python packages
+> (there are none to install). Skip the renderer with `--skip-libreoffice` — you
+> still get the PPTX + CSV and can enable PDF later.
 
 ---
 
-### 3. Using with AI Assistants (Claude Code, Cursor, Jetski)
+### 4. Using with AI Assistants (Claude Code, Cursor, Jetski)
 
 Once cloned, open your AI assistant in the repository folder and simply tell it:
 > **"Run a health assessment for my Wiz tenant and generate my files"**
@@ -87,7 +89,7 @@ The AI assistant will:
 
 ---
 
-### 4. Direct CLI Commands
+### 5. Direct CLI Commands
 
 * **Generate PDF Presentation & Metrics CSV (Default):**
   ```bash
@@ -135,7 +137,7 @@ The AI assistant will:
 ├── install.bat                              # Windows Command Prompt installer
 ├── install.ps1                              # Windows PowerShell installer
 ├── .env.example                             # Environment variables template
-├── requirements.txt                         # Python dependencies
+├── requirements.txt                         # (none — pure stdlib; kept as a no-op placeholder)
 ├── skills/
 │   ├── wiz-health-assessment/
 │   │   └── SKILL.md                         # Skill: Executive Health Assessment & Deck Builder

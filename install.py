@@ -70,6 +70,17 @@ def install_dependencies():
         print(f"[!] requirements.txt not found at {requirements} - skipping dependencies.")
         return True
 
+    # The tool is pure standard library. If requirements.txt has no actual
+    # package lines (comments/blank only), there is nothing to install - don't
+    # invoke pip (which would be a no-op and can prompt on PEP 668 systems).
+    pkg_lines = [
+        ln.strip() for ln in requirements.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    if not pkg_lines:
+        print("[*] No Python dependencies to install (tool uses the standard library only).")
+        return True
+
     print("[*] Installing Python dependencies...")
     print(f"    Interpreter: {sys.executable}")
 
