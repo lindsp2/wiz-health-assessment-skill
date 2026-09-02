@@ -29,10 +29,10 @@ Credentials are read strictly from `wiz-health-assessment-skill/.env` or environ
 ### Using the Python CLI:
 ```bash
 # Search GraphQL schema for fields or query types
-python3 scripts/wiz_client.py --search-schema "securityScore"
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wiz_client.py" --search-schema "securityScore"
 
 # Execute a query directly
-python3 scripts/wiz_client.py -q '{ systemHealthIssues(filterBy: { status: [OPEN] }) { totalCount } }'
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wiz_client.py" -q '{ systemHealthIssues(filterBy: { status: [OPEN] }) { totalCount } }'
 ```
 
 ---

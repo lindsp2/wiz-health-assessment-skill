@@ -180,8 +180,15 @@ def install_skills(argv=None):
     print(f"    [✓] Local workspace skills installed.")
 
     print("\n[2/3] Checking Credentials (.env)...")
-    env_file = REPO_DIR / ".env"
-    if env_file.exists():
+    # Plugin-aware: check $CLAUDE_PROJECT_DIR/.env -> ./.env -> repo root, so we don't
+    # falsely report "no .env" for a file the user placed in their working directory.
+    try:
+        sys.path.insert(0, str(SCRIPT_DIR))
+        from console_compat import find_env_file
+        env_file = find_env_file(REPO_DIR)
+    except Exception:
+        env_file = REPO_DIR / ".env" if (REPO_DIR / ".env").exists() else None
+    if env_file:
         print(f"  [✓] Found existing .env file at {env_file}")
     elif args.skip_credentials:
         print("  [*] Skipping credentials wizard (--skip-credentials).")

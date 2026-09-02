@@ -36,9 +36,18 @@ class GoogleSlidesClient:
     def from_env(cls) -> Optional["GoogleSlidesClient"]:
         """Instantiate client by loading credentials from .env and refreshing access token."""
         env_data = {}
-        env_path = os.environ.get("ENV_FILE")
-        env_file = Path(env_path) if env_path else (Path(__file__).resolve().parent.parent / ".env")
-        if env_file.exists():
+        # Resolve .env the same way the rest of the tool does (plugin-aware:
+        # $CLAUDE_PROJECT_DIR/.env -> ./.env -> repo root), so the advanced
+        # --format slides path finds the user's Google creds in plugin mode too.
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from console_compat import find_env_file
+            env_file = find_env_file(Path(__file__).resolve().parent.parent)
+        except Exception:
+            env_path = os.environ.get("ENV_FILE")
+            env_file = Path(env_path) if env_path else (Path(__file__).resolve().parent.parent / ".env")
+        if env_file and Path(env_file).exists():
             for line in env_file.read_text().splitlines():
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:

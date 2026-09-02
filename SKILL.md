@@ -20,7 +20,7 @@ You are an expert cloud security architect and technical advisor specializing in
 >
 > If credentials are missing or need configuration:
 > 1. Provide the exact step-by-step instructions below on how to obtain them in the Wiz portal.
-> 2. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 scripts/setup_credentials.py` in their local terminal.
+> 2. Instruct the user to save them directly into their local `.env` file on disk, or run `python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/setup_credentials.py"` in their local terminal.
 > 3. The agent must only read from the local `.env` file via script execution and never log or echo secrets into chat responses.
 
 ---
@@ -49,7 +49,7 @@ WIZ_API_ENDPOINT=https://api.us1.app.wiz.io/graphql
 WIZ_CLIENT_ID=your_client_id_here
 WIZ_CLIENT_SECRET=your_client_secret_here
 ```
-*(Or run `python3 scripts/setup_credentials.py` in your terminal to configure interactively).*
+*(Or run `python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/setup_credentials.py"` in your terminal to configure interactively).*
 
 ---
 
@@ -63,21 +63,21 @@ choices offered to end-users.)
 ```bash
 # 1. Executive PDF deck + metrics CSV (Default).
 #    Google export if configured, else offline LibreOffice render. No Google required.
-python3 scripts/generate_deck.py --format pdf --customer "Acme Corporation"
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format pdf --customer "Acme Corporation"
 
 # 2. Metrics CSV only — no deck, no LibreOffice. Ideal to hand to your Wiz TAM.
-python3 scripts/generate_deck.py --format csv --customer "Acme Corporation"
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format csv --customer "Acme Corporation"
 
 # 3. (Advanced, optional) Live Google Slides deck. Requires you to set your OWN Google API
 #    env vars (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN); NOT needed
 #    for the PDF, which is always rendered offline via LibreOffice.
-python3 scripts/generate_deck.py --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format slides --customer "Acme Corporation" --folder-id "<DRIVE_FOLDER_ID>"
 
 # 4. Local editable PowerPoint (.pptx) — power-user option.
-python3 scripts/generate_deck.py --format pptx --customer "Acme Corporation"
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --format pptx --customer "Acme Corporation"
 
 # 5. Dry Run (fetches telemetry & validates metrics without writing files)
-python3 scripts/generate_deck.py --dry-run --output-json metrics.json
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/generate_deck.py" --dry-run --output-json metrics.json
 ```
 
 ### What the Script Generates Automatically:
@@ -104,7 +104,7 @@ When conducting a live technical health audit without generating slides, evaluat
 
 Run the standalone audit:
 ```bash
-python3 scripts/run_health_assessment.py --customer "Acme Corp" -o health_report.md
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/run_health_assessment.py" --customer "Acme Corp" -o health_report.md
 ```
 
 ---
